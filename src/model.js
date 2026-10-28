@@ -36,7 +36,7 @@ export function newRoom(name = 'Room 1', roomType = 'Cold Room') {
     id: uid(), name, roomType, T: null, RH: null, H: null, W: null, L: null,
     ceiling: { T: 45, RH: 60, type: 'EPS' },
     floor: { T: 30, RH: 60, convection: 'Yes' },           // floor.type absent = V1.25 auto (Concrete if T ≥ 10 °C)
-    walls: [0, 1, 2, 3].map(() => ({ T: null, doors: [{}, {}] })), // wall.type absent = same as ceiling
+    walls: [0, 1, 2, 3].map(() => ({ T: null, source: 'outside', doors: [{}, {}] })), // type absent = same as ceiling; source: 'outside' | roomId | null (manual)
     products: [], workers: 0, fanMotorKW: null,
     forklift: { kW: 7, hours: 8, kgPerPallet: 600, tonPerDay: null },
     equipment: [], makeUp: { T: null, RH: null, CMH: null }, safetyFactor: 15,
@@ -49,8 +49,30 @@ export function newProject(name = 'New project') {
   return {
     schema: SCHEMA, id: uid(), name, client: '', site: '', engineer: '', jobNo: '', notes: '',
     createdAt: now, updatedAt: now, revision: 'A', defaultsConfirmed: false, profile: 'V1.25 parity',
+    outdoor: { T: 35, RH: 60 },
     buildings: [{ id: uid(), name: 'Building 1', floors: [newFloor('Floor 1')] }],
   };
+}
+
+// Walls linked to "Outside" or to another room take that temperature; their doors take its RH
+// unless the user typed the door RH (rhManual). Runs after every edit.
+export function syncLinks(p) {
+  const byId = new Map([...eachRoom(p)].map((x) => [x.room.id, x.room]));
+  for (const { room } of eachRoom(p)) {
+    for (const w of room.walls) {
+      if (w.source == null) continue;
+      const src = w.source === 'outside' ? p.outdoor : byId.get(w.source);
+      if (!src || src === room) { w.source = null; continue; }
+      w.T = src.T ?? null;
+      for (const d of w.doors) if (d && d.count > 0 && !d.rhManual) d.RH = src.RH ?? null;
+    }
+  }
+  return p;
+}
+export function sourceLabel(p, w) {
+  if (w.source === 'outside') return `Outside ${p.outdoor?.T ?? '—'} °C / ${p.outdoor?.RH ?? '—'} %`;
+  const r = w.source && findRoom(p, w.source)?.room;
+  return r ? `${r.name} ${r.T ?? '—'} °C / ${r.RH ?? '—'} %` : 'Manual';
 }
 
 export function* eachRoom(project) {
@@ -74,9 +96,12 @@ export function roomWarnings(room, result, data) {
     wl.doors.forEach((d, j) => {
       if (!d || !d.count) return;
       if (!(d.W > 0) || !(d.H > 0)) w.push({ level: 'error', text: `Wall ${i + 1} door ${j + 1}: width and height are required.` });
-      if (d.RH == null) w.push({ level: 'warn', text: `Wall ${i + 1} door ${j + 1}: RH of the air coming in is empty (treated as 0 %).` });
+      if (d.RH == null) w.push({ level: 'error', text: `Wall ${i + 1} door ${j + 1}: RH of the air coming in is empty. V1.25 would use 0 % and under-estimate infiltration.` });
     });
   });
+  const mu = room.makeUp || {};
+  if (mu.CMH > 0 && (mu.T == null || mu.RH == null)) w.push({ level: 'error', text: 'Make-up air: volume is set but temperature or RH is empty, so it adds no load.' });
+  if (mu.CMH > 0 && mu.CMH < 50) w.push({ level: 'warn', text: `Make-up air is only ${mu.CMH} CMH. Check the number (use 2000 or 2,000 for two thousand).` });
   (result?.product.items || []).forEach((p) => {
     if (p.q < 0) w.push({ level: 'warn', text: `Product ${p.idx}: load is negative (T in < T out). V1.25 keeps the negative value (finding F17).` });
     if (p.tf != null && p.tin === p.tf && p.tout < p.tf) w.push({ level: 'warn', text: `Product ${p.idx}: enters exactly at its freezing point; V1.25 skips the latent heat (F6).` });
@@ -110,7 +135,9 @@ export function fromHlp(text) {
 }
 export function migrate(p) {
   p.schema = p.schema || 1;
+  p.outdoor = p.outdoor || { T: 35, RH: 60 };
   for (const { room } of eachRoom(p)) {
+    room.walls.forEach((w) => { if (!('source' in w)) w.source = null; });
     room.extras = room.extras || { glass: 0, defrost: 0, packaging: 0 };
     room.walls.forEach((w) => { w.doors = w.doors || [{}, {}]; while (w.doors.length < 2) w.doors.push({}); });
   }

@@ -28,7 +28,8 @@ npm test                                   # CI-safe unit tests
 python3 tools/extract.py MASTER.xlsx src/data/v125.json
 python3 tools/golden.py MASTER.xlsx /tmp/golden 64       # needs LibreOffice
 HLS_MASTER=MASTER.xlsx npm test            # + 64 parity cases
-HLS_MASTER=MASTER.xlsx node tools/e2e.cjs  # browser end-to-end (Playwright, app served on :8766)
+HLS_MASTER=MASTER.xlsx node tools/e2e.cjs       # browser end-to-end (Playwright, app served on :8766)
+HLS_MASTER=MASTER.xlsx node tools/realuse.cjs   # 6-room cold storage project entered through the UI
 ```
 
 ## Calculation references

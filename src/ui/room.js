@@ -1,10 +1,10 @@
 // Room editor (V1.25 parity inputs) and live results panel.
 import { html, Num, Txt, Sel, kW, fmt } from './fields.js';
-import { DOOR_E, INSULATION, OPEN_MIN_HINT, LIMITS } from '../model.js';
+import { DOOR_E, INSULATION, OPEN_MIN_HINT, LIMITS, eachRoom } from '../model.js';
 
 const WALL_SIDE = ['along length (L)', 'along width (W)', 'along width (W)', 'along length (L)'];
 
-export function RoomEditor({ room, data, result, warnings, onChange }) {
+export function RoomEditor({ room, data, result, warnings, onChange, project }) {
   const set = (fn) => onChange((r) => { fn(r); });
   const ceilType = room.ceiling.type;
   const thk = (t, type) => {
@@ -15,6 +15,9 @@ export function RoomEditor({ room, data, result, warnings, onChange }) {
   const fType = room.floor.type ?? floorAuto;
   const fThk = fType === 'Concrete' ? 200 : thk(room.T, fType);
   const surf = result?.transmission.surfaces || [];
+  const others = [...eachRoom(project)].map((x) => x.room).filter((x) => x.id !== room.id);
+  const srcOptions = [{ value: 'outside', label: `Outside (${project.outdoor.T} °C / ${project.outdoor.RH} %)` },
+    ...others.map((o) => ({ value: o.id, label: `${o.name} (${o.T ?? '—'} °C)` })), { value: '__manual', label: 'Manual entry' }];
   return html`<div class="editor">
     <section class="card" id="sec-general">
       <h3>General <span class="th">ข้อมูลห้อง</span></h3>
@@ -50,7 +53,8 @@ export function RoomEditor({ room, data, result, warnings, onChange }) {
       <div class="walls">
         ${room.walls.map((w, i) => html`<div class="wall">
           <b>Wall ${i + 1}</b><span class="hint">${WALL_SIDE[i]}</span>
-          <${Num} label="Outside temperature" unit="°C" value=${w.T} onChange=${(v) => set((r) => { r.walls[i].T = v; })} />
+          <${Sel} label="Other side" value=${w.source ?? '__manual'} options=${srcOptions} onChange=${(v) => set((r) => { r.walls[i].source = v === '__manual' ? null : v; })} />
+          <${Num} label="Outside temperature" unit="°C" value=${w.T} onChange=${(v) => set((r) => { r.walls[i].T = v; r.walls[i].source = null; })} hint=${w.source ? 'linked — typing a value switches to manual' : ''} />
           <${Sel} label="Insulation" value=${w.type ?? null} allowEmpty emptyLabel=${`Same as ceiling (${ceilType})`} options=${INSULATION} onChange=${(v) => set((r) => { if (v == null) delete r.walls[i].type; else r.walls[i].type = v; })} />
           <span class="hint">${thk(room.T, w.type ?? ceilType) ?? '—'} mm · ${kW(surf[i + 2]?.A)} m² · <b>${kW(surf[i + 2]?.q)} kW</b></span>
         </div>`)}
@@ -59,7 +63,7 @@ export function RoomEditor({ room, data, result, warnings, onChange }) {
 
     <section class="card" id="sec-doors">
       <h3>Doors <span class="th">ประตู (2 ชุดต่อผนัง)</span></h3>
-      <p class="note">Recommended opening time for ${room.roomType}: <b>${OPEN_MIN_HINT[room.roomType] ?? '—'} min/hr</b>${room.roomType === 'Loading Dock' ? ' · Loading Dock uses the 1 cm gap method (V1.25).' : ''}</p>
+      <p class="note">Recommended opening time for ${room.roomType} (Table 3): <b>${OPEN_MIN_HINT[room.roomType] ?? '—'} min/hr</b>${room.roomType.startsWith('Freezer') ? ' — freezer door load is covered by the safety factor in V1.25.' : ''}${room.roomType === 'Loading Dock' ? ' · Loading Dock doors use the 1 cm gap method (V1.25), not opening time.' : ''}</p>
       <div class="doors">
         ${room.walls.map((w, i) => w.doors.slice(0, LIMITS.doorsPerWall).map((d, j) => {
           if (!(d && d.count > 0)) return null;
@@ -74,7 +78,9 @@ export function RoomEditor({ room, data, result, warnings, onChange }) {
               <${Num} label="Height" unit="m" value=${d.H} onChange=${(v) => D('H', v)} />
               <${Num} label="Opening time" unit="min/hr" value=${d.openMin} onChange=${(v) => D('openMin', v)} />
               <${Sel} label="Protection E" value=${d.E ?? 0} options=${DOOR_E.map((x) => ({ value: x.E, label: x.label }))} onChange=${(v) => D('E', v)} />
-              <${Num} label="RH of air coming in" unit="%" value=${d.RH} min=${0} max=${100} onChange=${(v) => D('RH', v)} hint=${`Air temp = wall ${i + 1} outside temp (${w.T ?? '—'} °C)`} />
+              <${Num} label="RH of air coming in" unit="%" value=${d.RH} min=${0} max=${100} onChange=${(v) => set((r) => { r.walls[i].doors[j].RH = v; r.walls[i].doors[j].rhManual = true; })}
+                hint=${`Air ${w.T ?? '—'} °C (wall ${i + 1} other side)${w.source ? (d.rhManual ? ' · RH typed' : ' · RH linked') : ''}`} />
+              ${w.source && d.rhManual && html`<button class="link" onClick=${() => set((r) => { r.walls[i].doors[j].rhManual = false; })}>Use linked RH</button>`}
             </div>
           </div>`;
         }))}
@@ -102,7 +108,7 @@ export function RoomEditor({ room, data, result, warnings, onChange }) {
             <${Num} label="Temperature out" unit="°C" value=${p.tOut} onChange=${(v) => set((r) => { r.products[k].tOut = v; })} />
             <${Num} label="Weight in" unit="ton" value=${p.ton} onChange=${(v) => set((r) => { r.products[k].ton = v; })} hint=${p.ton != null ? `${fmt(p.ton, 2)} ton` : ''} />
             <${Num} label="Cooling time" unit="h" value=${p.hours} onChange=${(v) => set((r) => { r.products[k].hours = v; })} />
-            <${Num} label="Heat of respiration" unit="mW/kg" value=${p.respiration} onChange=${(v) => set((r) => { r.products[k].respiration = v; })} />
+            <${Num} label="Heat of respiration" unit="mW/kg" value=${p.respiration} onChange=${(v) => set((r) => { r.products[k].respiration = v; })} hint=${['Fruits', 'Vegetables'].includes(p.category) ? 'Fresh produce: enter from ASHRAE thermal properties of foods' : 'Usually 0 for meat, fish, frozen products'} />
           </div>
           ${f && html`<p class="note">ASHRAE data (from master): freezing point ${f[2] === '—' ? '— (−1 °C used)' : f[2] + ' °C'} · c above ${f[3]} · c below ${f[4]} kJ/kg·K · latent ${f[6]} kJ/kg${res ? ` · rate ${fmt(res.rate, 2)} ton/h` : ''}</p>`}
         </div>`;
@@ -115,7 +121,7 @@ export function RoomEditor({ room, data, result, warnings, onChange }) {
       <div class="grid">
         <${Num} label="Workers" unit="person" value=${room.workers} min=${0} onChange=${(v) => set((r) => { r.workers = v ?? 0; })} hint=${`(272 − 6·T) W each = ${kW(result?.equipment.workers)} kW`} />
         <div class="ro"><span class="lab">Lighting (Table 6)</span><b>${data.lighting[room.roomType] ?? 0} W/m²</b><span class="hint">${kW(result?.equipment.lighting)} kW</span></div>
-        <${Num} label="Actual air cooler fan motor" unit="kW" value=${room.fanMotorKW} min=${0} onChange=${(v) => set((r) => { r.fanMotorKW = v; })} hint=${room.fanMotorKW > 0 ? 'Using actual motor' : room.roomType === 'Freezer - Trolley' ? `ABF estimate from airflow: ${kW(result?.equipment.fan)} kW` : `Estimate ${Math.round((data.fanFactor[room.roomType] || 0) * 100)} % of load: ${kW(result?.equipment.fan)} kW`} />
+        <${Num} label="Actual air cooler fan motor" unit="kW" value=${room.fanMotorKW} min=${0} onChange=${(v) => set((r) => { r.fanMotorKW = v; })} hint=${room.fanMotorKW > 0 ? 'Using actual motor' : room.roomType === 'Freezer - Trolley' ? `ABF: airflow max(W,L) × 20,000 = ${fmt(Math.max(room.W || 0, room.L || 0) * 20000, 0)} CMH → ${kW(result?.equipment.fan)} kW` : `Estimate ${Math.round((data.fanFactor[room.roomType] || 0) * 100)} % of load: ${kW(result?.equipment.fan)} kW`} />
       </div>
       <div class="sub">Forklift (Table 7)</div>
       <div class="grid">
@@ -167,6 +173,7 @@ export function ResultsPanel({ room, result, warnings }) {
   return html`<aside class="results" aria-label="Results">
     <div class="big"><span class="lab">Required capacity · V1.25</span><b>${kW(t?.required)}</b><span class="u">kW</span></div>
     <div class="sub2">${kW(t?.required / 3.5169)} TR · run ${t?.runHours ?? '—'} h/day · SF ${t?.safetyFactor ?? '—'} %</div>
+    <div class="sub2">V1.25 running time: ABF 24 h · room ≤ 5 °C 20 h · above 5 °C 24 h</div>
     <div class="stack" role="img" aria-label="Load split by part">${parts.map((p) => html`<span style=${`width:${Math.max(0, p.v) / pos * 100}%;background:${p.color}`}></span>`)}</div>
     <table class="parts"><tbody>
       ${parts.map((p) => html`<tr><td><i style=${`background:${p.color}`}></i>${p.label}</td><td class="n">${kW(p.v)}</td><td class="n mut">${kW(Math.max(0, p.v) / pos * 100, 0)} %</td></tr>`)}

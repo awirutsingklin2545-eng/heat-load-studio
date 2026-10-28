@@ -5,7 +5,16 @@ export const html = htm.bind(h);
 
 let seq = 0;
 const nid = (p) => `${p}-${++seq}`;
-const toNum = (s) => { if (s === '' || s == null) return null; const n = Number(String(s).replace(',', '.')); return Number.isFinite(n) ? n : undefined; };
+// "2,000" and "1,250.5" use comma as thousands separator; a lone comma with no dot ("1,5") is a decimal comma.
+export function toNum(s) {
+  if (s === '' || s == null) return null;
+  let t = String(s).trim().replace(/\s+/g, '');
+  if (t === '') return null;
+  if (/^[-+]?\d{1,3}(,\d{3})+(\.\d+)?$/.test(t)) t = t.replace(/,/g, '');
+  else if (/^[-+]?\d*,\d+$/.test(t)) t = t.replace(',', '.');
+  const n = Number(t);
+  return Number.isFinite(n) ? n : undefined;
+}
 
 // Number field: empty -> null; keeps the user's text while typing.
 export function Num({ label, value, onChange, unit, hint, min, max, step = 'any', id, placeholder, width }) {
@@ -14,7 +23,7 @@ export function Num({ label, value, onChange, unit, hint, min, max, step = 'any'
   return html`<label class="fld ${bad ? 'bad' : ''}" for=${fid} style=${width ? `--w:${width}` : ''}>
     <span class="lab">${label}</span>
     <span class="inp"><input id=${fid} aria-label=${label} type="text" inputmode="decimal" autocomplete="off" placeholder=${placeholder ?? ''}
-      value=${value ?? ''} onChange=${(e) => { const n = toNum(e.target.value); if (n !== undefined) onChange(n); else e.target.value = value ?? ''; }} />
+      value=${value ?? ''} onChange=${(e) => { const n = toNum(e.target.value); if (n !== undefined) { onChange(n); e.target.value = n ?? ''; } else { e.target.value = value ?? ''; e.target.title = 'Not a number — value kept'; } }} />
       ${unit && html`<span class="unit">${unit}</span>`}</span>
     ${hint && html`<span class="hint">${hint}</span>`}
   </label>`;

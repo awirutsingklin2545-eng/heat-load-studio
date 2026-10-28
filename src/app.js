@@ -7,9 +7,9 @@ import { calcRoomV125, ENGINE_VERSION } from './engine/v125.js';
 import { exportWorkbook } from './export/excel.js';
 import { extractV125 } from './data/fromMaster.js';
 import * as db from './store.js';
-import { newProject, newFloor, newRoom, eachRoom, findRoom, roomWarnings, toHlp, fromHlp, cloneProject, MASTER_DEFAULTS, uid, excelSerial } from './model.js';
+import { newProject, newFloor, newRoom, eachRoom, findRoom, roomWarnings, toHlp, fromHlp, cloneProject, MASTER_DEFAULTS, uid, excelSerial, syncLinks, migrate } from './model.js';
 
-export const APP_VERSION = '0.2.0';
+export const APP_VERSION = '0.2.1';
 const JSZip = window.JSZip;
 
 // ---------- routing: #/  #/p/<id>  #/p/<id>/r/<roomId>  #/settings ----------
@@ -155,7 +155,7 @@ function ProjectView({ route, data, master }) {
   const [missing, setMissing] = useState(false);
   const [otherTab, setOtherTab] = useState(false);
   const timer = useRef(null); const latest = useRef(null);
-  useEffect(() => { db.getProject(route.id).then((p) => (p ? setProject(p) : setMissing(true))); }, [route.id]);
+  useEffect(() => { db.getProject(route.id).then((p) => (p ? setProject(syncLinks(migrate(p))) : setMissing(true))); }, [route.id]);
   // warn when the same project is open in two tabs
   useEffect(() => {
     if (!('BroadcastChannel' in window)) return;
@@ -172,10 +172,15 @@ function ProjectView({ route, data, master }) {
       try { await db.putProject(latest.current); setStatus('saved'); } catch (e) { console.error(e); setStatus('error'); }
     }, 500);
   }, []);
-  useEffect(() => { const f = () => { if (latest.current && status !== 'saved') db.putProject(latest.current); }; addEventListener('pagehide', f); return () => removeEventListener('pagehide', f); }, [status]);
+  useEffect(() => {
+    const flush = () => { if (latest.current && status !== 'saved') { clearTimeout(timer.current); db.putProject(latest.current).then(() => setStatus('saved')).catch(() => setStatus('error')); } };
+    const vis = () => { if (document.visibilityState === 'hidden') flush(); };
+    addEventListener('pagehide', flush); document.addEventListener('visibilitychange', vis);
+    return () => { removeEventListener('pagehide', flush); document.removeEventListener('visibilitychange', vis); };
+  }, [status]);
 
   const update = (fn) => setProject((prev) => {
-    const p = structuredClone(prev); fn(p); p.updatedAt = new Date().toISOString();
+    const p = structuredClone(prev); fn(p); syncLinks(p); p.updatedAt = new Date().toISOString();
     const res = calcAll(p, data); let req = 0; for (const v of res.values()) req += v.result?.totals.required || 0;
     p.summary = { required: req, rooms: res.size, engine: ENGINE_VERSION };
     save(p); return p;
@@ -193,7 +198,7 @@ function ProjectView({ route, data, master }) {
       <${Tree} project=${project} results=${results} sel=${sel} update=${update} />
       ${sel
         ? html`<main class="main"><${RoomEditor} room=${sel.room} data=${data} result=${results.get(sel.room.id)?.result} warnings=${results.get(sel.room.id)?.warnings || []}
-            onChange=${(fn) => update((p) => fn(findRoom(p, sel.room.id).room))} /></main>
+            project=${project} onChange=${(fn) => update((p) => fn(findRoom(p, sel.room.id).room))} /></main>
           <${ResultsPanel} room=${sel.room} result=${results.get(sel.room.id)?.result} warnings=${results.get(sel.room.id)?.warnings || []} />`
         : html`<main class="main wide"><${Overview} project=${project} results=${results} update=${update} master=${master} /></main>`}
     </div>
@@ -205,7 +210,7 @@ function Tree({ project, results, sel, update }) {
   const [ask, setAsk] = useState(null);
   const move = (arr, i, d) => { const j = i + d; if (j < 0 || j >= arr.length) return; [arr[i], arr[j]] = [arr[j], arr[i]]; };
   const rename = (id, name, apply) => edit === id
-    ? html`<input class="ren" autofocus value=${name} onBlur=${(e) => { apply(e.target.value.trim() || name); setEdit(null); }} onKeyDown=${(e) => { if (e.key === 'Enter') e.target.blur(); if (e.key === 'Escape') setEdit(null); }} />`
+    ? html`<input class="ren" ref=${(el) => el && document.activeElement !== el && (el.focus(), el.select())} value=${name} onBlur=${(e) => { apply(e.target.value.trim() || name); setEdit(null); }} onKeyDown=${(e) => { if (e.key === 'Enter') e.target.blur(); if (e.key === 'Escape') setEdit(null); }} />`
     : null;
   return html`<nav class="tree" aria-label="Building tree">
     <a class=${'node proj ' + (!sel ? 'active' : '')} href=${`#/p/${project.id}`}>Project overview</a>
@@ -275,6 +280,11 @@ function Overview({ project, results, update, master }) {
         <${Txt} label="Engineer (Excel 'User Name')" value=${project.engineer} onChange=${(v) => P('engineer', v)} />
         <${Txt} label="Revision" value=${project.revision} onChange=${(v) => P('revision', v || 'A')} />
       </div>
+      <div class="sub">Outdoor design condition <span class="th">ใช้กับผนัง/ประตูที่เลือก "Outside"</span></div>
+      <div class="grid">
+        <${Num} label="Outdoor dry bulb" unit="°C" value=${project.outdoor.T} onChange=${(v) => update((p) => { p.outdoor.T = v; })} />
+        <${Num} label="Outdoor RH" unit="%" value=${project.outdoor.RH} min=${0} max=${100} onChange=${(v) => update((p) => { p.outdoor.RH = v; })} />
+      </div>
     </section>
 
     <section class=${'card ' + (project.defaultsConfirmed ? '' : 'attention')}>
@@ -287,6 +297,7 @@ function Overview({ project, results, update, master }) {
           return html`<tr><td>${d.label}</td><td class="n">${d.value} ${d.unit}</td><td class="mono">${d.cell}</td><td>${diff.length ? diff.join(', ') : '—'}</td></tr>`;
         })}
       </tbody></table></div>
+      <p class="note">Outdoor design condition (project setting above): <b>${project.outdoor.T ?? '—'} °C / ${project.outdoor.RH ?? '—'} %</b> — used by every wall and door set to "Outside".</p>
       <label class="check"><input type="checkbox" id="confirmdefaults" checked=${project.defaultsConfirmed} onChange=${(e) => P('defaultsConfirmed', e.target.checked)} /> I checked these values for this project</label>
     </section>
 
