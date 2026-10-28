@@ -6,12 +6,15 @@ import { RoomEditor, ResultsPanel, partsOf } from './ui/room.js';
 import { Report } from './ui/report.js';
 import { PsyChart, projectPressure } from './ui/psychart.js';
 import { calcRoomV125, ENGINE_VERSION } from './engine/v125.js';
+import { calcRoomASHRAE } from './engine/ashrae.js';
+import { compareRoom } from './engine/compare.js';
+import { BasisCard, StandardsCard, ComparisonCard, AshraeSummary } from './ui/ashrae-ui.js';
 import { exportWorkbook } from './export/excel.js';
 import { extractV125 } from './data/fromMaster.js';
 import * as db from './store.js';
 import { newProject, newFloor, newRoom, eachRoom, findRoom, roomWarnings, toHlp, fromHlp, cloneProject, MASTER_DEFAULTS, uid, excelSerial, syncLinks, migrate } from './model.js';
 
-export const APP_VERSION = '0.5.0';
+export const APP_VERSION = '0.6.0';
 const JSZip = window.JSZip;
 
 // ---------- routing: #/  #/p/<id>  #/p/<id>/r/<roomId>  #/settings ----------
@@ -35,9 +38,12 @@ function calcAll(project, data) {
   const out = new Map();
   if (!data) return out;
   for (const { room } of eachRoom(project)) {
-    let result = null;
+    let result = null, ash = null;
     try { result = calcRoomV125(room, data); } catch (e) { console.error(e); }
-    out.set(room.id, { result, warnings: roomWarnings(room, result, data) });
+    try { ash = calcRoomASHRAE(room, project, data); } catch (e) { console.error(e); }
+    const cmp = result && ash ? compareRoom(room, result, ash) : null;
+    const active = project.basis === 'ASHRAE' ? ash : result;
+    out.set(room.id, { result, ash, cmp, active, warnings: roomWarnings(room, result, data) });
   }
   return out;
 }
@@ -183,8 +189,8 @@ function ProjectView({ route, data, master }) {
 
   const update = (fn) => setProject((prev) => {
     const p = structuredClone(prev); fn(p); syncLinks(p); p.updatedAt = new Date().toISOString();
-    const res = calcAll(p, data); let req = 0; for (const v of res.values()) req += v.result?.totals.required || 0;
-    p.summary = { required: req, rooms: res.size, engine: ENGINE_VERSION };
+    const res = calcAll(p, data); let req = 0; for (const v of res.values()) req += v.active?.totals.required || 0;
+    p.summary = { required: req, rooms: res.size, engine: p.basis === 'ASHRAE' ? 'ASHRAE' : ENGINE_VERSION };
     save(p); return p;
   });
 
@@ -201,8 +207,8 @@ function ProjectView({ route, data, master }) {
       <${Tree} project=${project} results=${results} sel=${sel} update=${update} />
       ${sel
         ? html`<main class="main"><${RoomEditor} key=${sel.room.id} room=${sel.room} data=${data} result=${results.get(sel.room.id)?.result} warnings=${results.get(sel.room.id)?.warnings || []}
-            project=${project} onChange=${(fn) => update((p) => fn(findRoom(p, sel.room.id).room))} /></main>
-          <${ResultsPanel} key=${'res-' + sel.room.id} project=${project} room=${sel.room} result=${results.get(sel.room.id)?.result} warnings=${results.get(sel.room.id)?.warnings || []} />`
+            project=${project} cmp=${results.get(sel.room.id)?.cmp} onChange=${(fn) => update((p) => fn(findRoom(p, sel.room.id).room))} /></main>
+          <${ResultsPanel} key=${'res-' + sel.room.id} project=${project} room=${sel.room} res=${results.get(sel.room.id)} result=${results.get(sel.room.id)?.result} warnings=${results.get(sel.room.id)?.warnings || []} />`
         : html`<main class="main wide"><${Overview} project=${project} results=${results} update=${update} master=${master} /></main>`}
     </div>
   </${Shell}>`;
@@ -233,7 +239,7 @@ function Tree({ project, results, sel, update }) {
           const res = results.get(r.id); const err = res?.warnings.some((w) => w.level === 'error');
           return html`<div class=${'node r ' + (sel?.room.id === r.id ? 'active' : '')}>
             ${rename(r.id, r.name, (v) => update((p) => { p.buildings[bi].floors[fi].rooms[ri].name = v; })) ||
-              html`<a href=${`#/p/${project.id}/r/${r.id}`}><span class=${'dot ' + (err ? 'bad' : 'ok')}></span>${r.name}<span class="kw">${kW(res?.result?.totals.required, 1)}</span></a>`}
+              html`<a href=${`#/p/${project.id}/r/${r.id}`}><span class=${'dot ' + (err ? 'bad' : 'ok')}></span>${r.name}<span class="kw">${kW(res?.active?.totals.required, 1)}</span></a>`}
             <span class="acts">
               <button title="Rename room" onClick=${() => setEdit(r.id)}>✎</button>
               <button title="Duplicate room" onClick=${() => update((p) => { const c = structuredClone(r); c.id = uid(); c.name = `${r.name} copy`; p.buildings[bi].floors[fi].rooms.splice(ri + 1, 0, c); })}>⧉</button>
@@ -272,6 +278,29 @@ function Overview({ project, results, update, master }) {
     setBusy(false);
   }
   const P = (k, v) => update((p) => { p[k] = v; });
+  const v125Summary = () => html`
+    <section class="card">
+      <div class="row between"><h3>Summary <span class="th">สรุป heat load</span></h3>
+        <div class="big inline"><b>${kW(all.required)}</b> kW · <b>${kW(all.required / 3.5169)}</b> TR</div></div>
+      ${rows.length === 0 && html`<p class="note">Add a room from the left panel.</p>`}
+      ${project.buildings.map((b) => b.floors.map((f) => {
+        const fr = rows.filter((x) => x.floor.id === f.id); const s = sumParts(fr);
+        return html`<div class="tbl"><table class="sum"><caption>${b.name} · ${f.name}</caption>
+          <thead><tr><th>Room</th><th>Type</th><th class="n">°C</th><th class="n">Trans.</th><th class="n">Infil.</th><th class="n">Product</th><th class="n">Equip.</th><th class="n">Total</th><th class="n">+SF</th><th class="n">Required kW</th><th class="n">TR</th><th class="n">Extras</th><th>Split</th></tr></thead>
+          <tbody>${fr.map((x) => {
+            const r = x.result; const parts = partsOf(r); const pos = parts.reduce((a, p) => a + Math.max(0, p.v), 0) || 1;
+            const ex = (x.room.extras.glass || 0) + (x.room.extras.defrost || 0) + (x.room.extras.packaging || 0);
+            return html`<tr><td><a href=${`#/p/${project.id}/r/${x.room.id}`}>${x.room.name}</a>${x.warnings?.some((w) => w.level === 'error') && html` <span class="pill bad">fix</span>`}</td><td>${x.room.roomType}</td><td class="n">${x.room.T ?? '—'}</td>
+              ${parts.map((p) => html`<td class="n">${kW(p.v)}</td>`)}<td class="n">${kW(r?.totals.total)}</td><td class="n">${kW(r?.totals.afterSF)}</td><td class="n"><b>${kW(r?.totals.required)}</b></td><td class="n">${kW((r?.totals.required || 0) / 3.5169)}</td><td class="n">${ex ? kW(ex) : '—'}</td>
+              <td><div class="mini">${parts.map((p) => html`<span style=${`width:${Math.max(0, p.v) / pos * 100}%;background:${p.color}`}></span>`)}</div></td></tr>`;
+          })}</tbody>
+          <tfoot><tr><td colspan="3">${f.name} total</td><td class="n">${kW(s.transmission)}</td><td class="n">${kW(s.infiltration)}</td><td class="n">${kW(s.product)}</td><td class="n">${kW(s.equipment)}</td><td class="n">${kW(s.total)}</td><td class="n">${kW(s.afterSF)}</td><td class="n"><b>${kW(s.required)}</b></td><td class="n">${kW(s.required / 3.5169)}</td><td class="n">${s.extras ? kW(s.extras) : '—'}</td><td></td></tr></tfoot>
+        </table></div>`;
+      }))}
+      <p class="note">Floor and building totals are the sum of room peaks (refrigeration rooms run independently). Required kW = (total × (1 + SF)) × 24 / running hours, as in V1.25.</p>
+    </section>
+
+  `;
   return html`<div class="overview">
     <section class="card">
       <h3>Project <span class="th">ข้อมูลโปรเจกต์</span></h3>
@@ -290,6 +319,8 @@ function Overview({ project, results, update, master }) {
         <${Num} label="Site altitude" unit="m" value=${project.altitude ?? 0} min=${-400} max=${5000} onChange=${(v) => update((p) => { p.altitude = v ?? 0; })} hint=${`Air pressure ${kW(projectPressure(project), 2)} kPa (ASHRAE Fundamentals Eq. 3)`} />
       </div>
     </section>
+
+    <${BasisCard} project=${project} update=${update} />
 
     <section class="card" id="sec-psy">
       <h3>Psychrometric chart <span class="th">จุดอากาศของทุกห้อง อัปเดตทันทีที่แก้ค่า</span></h3>
@@ -313,26 +344,9 @@ function Overview({ project, results, update, master }) {
       <label class="check"><input type="checkbox" id="confirmdefaults" checked=${project.defaultsConfirmed} onChange=${(e) => P('defaultsConfirmed', e.target.checked)} /> I checked these values for this project</label>
     </section>
 
-    <section class="card">
-      <div class="row between"><h3>Summary <span class="th">สรุป heat load</span></h3>
-        <div class="big inline"><b>${kW(all.required)}</b> kW · <b>${kW(all.required / 3.5169)}</b> TR</div></div>
-      ${rows.length === 0 && html`<p class="note">Add a room from the left panel.</p>`}
-      ${project.buildings.map((b) => b.floors.map((f) => {
-        const fr = rows.filter((x) => x.floor.id === f.id); const s = sumParts(fr);
-        return html`<div class="tbl"><table class="sum"><caption>${b.name} · ${f.name}</caption>
-          <thead><tr><th>Room</th><th>Type</th><th class="n">°C</th><th class="n">Trans.</th><th class="n">Infil.</th><th class="n">Product</th><th class="n">Equip.</th><th class="n">Total</th><th class="n">+SF</th><th class="n">Required kW</th><th class="n">TR</th><th class="n">Extras</th><th>Split</th></tr></thead>
-          <tbody>${fr.map((x) => {
-            const r = x.result; const parts = partsOf(r); const pos = parts.reduce((a, p) => a + Math.max(0, p.v), 0) || 1;
-            const ex = (x.room.extras.glass || 0) + (x.room.extras.defrost || 0) + (x.room.extras.packaging || 0);
-            return html`<tr><td><a href=${`#/p/${project.id}/r/${x.room.id}`}>${x.room.name}</a>${x.warnings?.some((w) => w.level === 'error') && html` <span class="pill bad">fix</span>`}</td><td>${x.room.roomType}</td><td class="n">${x.room.T ?? '—'}</td>
-              ${parts.map((p) => html`<td class="n">${kW(p.v)}</td>`)}<td class="n">${kW(r?.totals.total)}</td><td class="n">${kW(r?.totals.afterSF)}</td><td class="n"><b>${kW(r?.totals.required)}</b></td><td class="n">${kW((r?.totals.required || 0) / 3.5169)}</td><td class="n">${ex ? kW(ex) : '—'}</td>
-              <td><div class="mini">${parts.map((p) => html`<span style=${`width:${Math.max(0, p.v) / pos * 100}%;background:${p.color}`}></span>`)}</div></td></tr>`;
-          })}</tbody>
-          <tfoot><tr><td colspan="3">${f.name} total</td><td class="n">${kW(s.transmission)}</td><td class="n">${kW(s.infiltration)}</td><td class="n">${kW(s.product)}</td><td class="n">${kW(s.equipment)}</td><td class="n">${kW(s.total)}</td><td class="n">${kW(s.afterSF)}</td><td class="n"><b>${kW(s.required)}</b></td><td class="n">${kW(s.required / 3.5169)}</td><td class="n">${s.extras ? kW(s.extras) : '—'}</td><td></td></tr></tfoot>
-        </table></div>`;
-      }))}
-      <p class="note">Floor and building totals are the sum of room peaks (refrigeration rooms run independently). Required kW = (total × (1 + SF)) × 24 / running hours, as in V1.25.</p>
-    </section>
+    ${project.basis === 'ASHRAE' ? html`<${AshraeSummary} project=${project} rows=${rows} />` : v125Summary()}
+    <${ComparisonCard} project=${project} rows=${rows} />
+    <${StandardsCard} />
 
     <section class="card">
       <h3>Export <span class="th">ส่งออก</span></h3>

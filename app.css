@@ -135,3 +135,12 @@ caption{text-align:left;font-weight:600;padding:6px 0;font-family:var(--f-d)}
   .noprint,.rtool{display:none!important}
   .r-pages .pagedjs_page{box-shadow:none;margin:0}
 }
+/* ---------- ASHRAE profile ---------- */
+.seg{display:flex;flex-wrap:wrap;gap:6px}
+.seg button{border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:7px 14px;font:inherit;font-size:13px;cursor:pointer;color:var(--ink)}
+.seg button.on{background:var(--volt);border-color:var(--volt);color:#fff}
+.cmpline{font-size:12.5px;background:var(--surface2);border:1px solid var(--line);border-radius:8px;padding:6px 8px}
+b.up{color:var(--crit)} b.down{color:var(--volt)}
+ul.reasons{margin:4px 0 0;padding-left:18px;font-size:12.5px;display:flex;flex-direction:column;gap:3px}
+.card.ash{border-color:#9FC6E8}
+.ashres{display:flex;flex-direction:column;gap:10px}

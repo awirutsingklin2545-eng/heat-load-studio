@@ -227,3 +227,6 @@ function forkliftFactor(type, W, L, H, fk) {
     default: return 0;
   }
 }
+
+// shared with the ASHRAE profile (same worksheet tables)
+export { thickness, foodByName, forkliftFactor, forecastLinear };

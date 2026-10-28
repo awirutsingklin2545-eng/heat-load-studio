@@ -2,10 +2,11 @@
 import { html, Num, Txt, Sel, kW, fmt } from './fields.js';
 import { DOOR_E, INSULATION, OPEN_MIN_HINT, LIMITS, eachRoom } from '../model.js';
 import { PsyChart, roomPoints, projectPressure } from './psychart.js';
+import { AshraeInputs, AshraeResults, RoomComparison } from './ashrae-ui.js';
 
 const WALL_SIDE = ['along length (L)', 'along width (W)', 'along width (W)', 'along length (L)'];
 
-export function RoomEditor({ room, data, result, warnings, onChange, project }) {
+export function RoomEditor({ room, data, result, warnings, onChange, project, cmp }) {
   const set = (fn) => onChange((r) => { fn(r); });
   const ceilType = room.ceiling.type;
   const thk = (t, type) => {
@@ -160,14 +161,29 @@ export function RoomEditor({ room, data, result, warnings, onChange, project }) 
         <${Num} label="Packaging" unit="kW" value=${room.extras.packaging} onChange=${(v) => set((r) => { r.extras.packaging = v ?? 0; })} />
       </div>
     </section>
+    ${project.basis === 'ASHRAE' && html`<${AshraeInputs} room=${room} project=${project} set=${set} />`}
+    <${RoomComparison} cmp=${cmp} />
   </div>`;
 }
 
 const PARTS = [['transmission', 'Transmission', 'var(--c-trans)'], ['infiltration', 'Infiltration', 'var(--c-inf)'], ['product', 'Product', 'var(--c-prod)'], ['equipment', 'Equipment', 'var(--c-eq)']];
 export function partsOf(res) { return PARTS.map(([k, label, color]) => ({ k, label, color, v: res ? res[k].total : 0 })); }
 
-export function ResultsPanel({ project, room, result, warnings }) {
+export function ResultsPanel({ project, room, result, warnings, res }) {
   const rp = roomPoints(project, room);
+  if (project.basis === 'ASHRAE') {
+    const ash = res?.ash;
+    if (ash?.kind === 'ac' && ash.points) {
+      const P = ash.points, pt = (key, label, s, kind) => s && { key, label, t: s.t, RH: s.RH, kind };
+      rp.points = [pt('room', room.name, P.ra, 'room'), pt('out', `Outdoor (peak)`, P.oa, 'outdoor'), pt('ma', 'Mixed air', P.ma, 'other'), pt('sa', 'Supply air', P.sa, 'supply')].filter(Boolean);
+      rp.links = [['out', 'ma'], ['room', 'ma'], ['ma', 'sa'], ['sa', 'room']];
+    }
+    return html`<aside class="results" aria-label="Results">
+      <${AshraeResults} room=${room} ash=${ash} v125=${result} cmp=${res?.cmp} />
+      ${warnings.length > 0 && html`<ul class="warns">${warnings.filter((w) => w.level === 'error').map((w) => html`<li class=${w.level}>${w.text}</li>`)}</ul>`}
+      <${PsyChart} compact title=${ash?.kind === 'ac' ? 'Psychrometric chart · coil process' : 'Psychrometric chart'} p=${projectPressure(project)} points=${rp.points} links=${rp.links} comfort=${room.roomType === 'Air Conditioning'} />
+    </aside>`;
+  }
   const t = result?.totals;
   const parts = partsOf(result);
   const pos = parts.reduce((s, p) => s + Math.max(0, p.v), 0) || 1;

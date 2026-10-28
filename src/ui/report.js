@@ -8,6 +8,8 @@ import { useEffect, useRef, useState } from 'preact/hooks';
 import { html } from './fields.js';
 import { eachRoom, findRoom, MASTER_DEFAULTS } from '../model.js';
 import { ENGINE_VERSION } from '../engine/v125.js';
+import { EDITIONS } from '../engine/ashrae.js';
+import { MONTHS } from '../engine/compare.js';
 
 const TR = 3.5169;
 const f = (x, d = 2) => (Number.isFinite(x) ? x.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d }) : 'n/a');
@@ -35,7 +37,9 @@ function collect(project, results) {
     prod: sum((x) => x.result.product.total), equip: sum((x) => x.result.equipment.total),
     total: sum((x) => x.result.totals.total), req: sum((x) => x.result.totals.required),
     extras: sum((x) => (x.room.extras?.glass || 0) + (x.room.extras?.defrost || 0) + (x.room.extras?.packaging || 0)),
+    reqA: sum((x) => x.ash?.totals.required || 0),
   };
+  tot.isA = project.basis === 'ASHRAE'; tot.design = tot.isA ? tot.reqA : tot.req;
   return { rows, tot };
 }
 const parts = (r) => [['Transmission', r.transmission.total], ['Infiltration', r.infiltration.total], ['Product', r.product.total], ['Internal', r.equipment.total]];
@@ -43,7 +47,7 @@ const parts = (r) => [['Transmission', r.transmission.total], ['Infiltration', r
 const TOC = [
   ['r-intro', '1', 'Introduction'], ['r-obj', '2', 'Objectives'], ['r-scope', '3', 'Scope of work'], ['r-codes', '4', 'Codes, standards and references'],
   ['r-basis', '5', 'Design basis'], ['r-method', '6', 'Calculation method'], ['r-calc', '7', 'Calculations by room'],
-  ['r-results', '8', 'Results summary'], ['r-disc', '9', 'Discussion and recommendations'], ['r-concl', '10', 'Conclusion'],
+  ['r-results', '8', 'Results summary'], ['r-ash', '9', 'Comparison with ASHRAE'], ['r-disc', '10', 'Discussion and recommendations'], ['r-concl', '11', 'Conclusion'],
   ['r-appA', 'A', 'Appendix A: Nomenclature'], ['r-appB', 'B', 'Appendix B: Property data used'], ['r-appC', 'C', 'Appendix C: Input checks'],
 ];
 const NOMEN = [
@@ -88,7 +92,7 @@ function Body({ project, results, data }) {
         <tr><th>Date of issue</th><td>${date}</td></tr>
         <tr><th>Job no.</th><td>${project.jobNo || 'n/a'}</td></tr>
         <tr><th>Rooms calculated</th><td>${n}</td></tr>
-        <tr><th>Total required capacity</th><td><b>${f(tot.req)} kW (${f(tot.req / TR)} TR)</b></td></tr>
+        <tr><th>Total required capacity</th><td><b>${f(tot.design)} kW (${f(tot.design / TR)} TR)</b>, ${tot.isA ? 'ASHRAE basis' : 'V1.25 basis'}</td></tr>
       </tbody></table>
       <table class="r-sign"><thead><tr><th></th><th>Name</th><th>Signature</th><th>Date</th></tr></thead><tbody>
         <tr><th>Prepared by</th><td>${project.engineer || ''}</td><td></td><td></td></tr>
@@ -110,6 +114,7 @@ function Body({ project, results, data }) {
       ${S('r-intro', '1', 'Introduction')}
       <p>This report sizes the refrigeration for ${n === 1 ? 'one room' : `${n} rooms`} of ${project.name}${project.site ? ` at ${project.site}` : ''}${project.client ? ` for ${project.client}` : ''}. The rooms are of the following types: ${types.join(', ')}. For each room it works out how much heat has to be removed, shows the values and assumptions behind that figure, and states the refrigeration capacity the room needs.</p>
       <p>The method is the refrigeration load method of the ASHRAE Handbook as set up in the company's standard worksheet, Load Calculation V1.25. The figures were produced with Heat Load Studio (${ENGINE_VERSION}), which repeats the worksheet cell by cell. The same inputs are issued in the V1.25 Excel file for the project, so the two can be checked against each other.</p>
+      <p>${tot.isA ? `The design capacities in this report follow the ASHRAE basis: the Refrigeration handbook method for refrigerated rooms and the radiant time series method for air-conditioned rooms. Section 7 keeps the V1.25 working as the base calculation, and Section 9 sets out what the ASHRAE basis changes and why the two results differ.` : `The design capacities follow the V1.25 worksheet. Section 9 runs the same rooms through the ASHRAE method and explains where and why the results differ.`}</p>
 
       ${S('r-obj', '2', 'Objectives')}
       <ol class="r-list">
@@ -128,12 +133,10 @@ function Body({ project, results, data }) {
       <p>Not included in the V1.25 method: solar gain on outside walls and roofs, glazing, defrost heat, packaging, pull-down of a warm empty room, and heat gain to the refrigerant piping. Where a value was entered for glazing, defrost or packaging, it is reported separately as a load outside V1.25 and added only to the grand total.</p>
 
       ${S('r-codes', '4', 'Codes, standards and references')}
-      <ol class="r-list">
-        <li>ASHRAE Handbook, Refrigeration volume, chapter on refrigeration load: transmission, infiltration through doorways (Gosney and Olama), product and internal loads.</li>
-        <li>ASHRAE Handbook, Refrigeration volume, chapter on thermal properties of foods: freezing point, specific heat and latent heat.</li>
-        <li>ASHRAE Handbook, Fundamentals volume, chapter on psychrometrics: enthalpy and specific volume of moist air.</li>
-        <li>Load Calculation V1.25 worksheet, Tables 1 to 8: insulation thickness, door protection, door opening time, products, fan motor, lighting, forklift and motor factor.</li>
-      </ol>
+      <p>The latest editions at the date of this report are listed in Table 4.1, with the year in both the Christian and the Buddhist calendars.</p>
+      <table class="r-t"><caption>Table 4.1 Standards and handbooks</caption><thead><tr><th>Document</th><th class="r">Edition</th><th class="r">พ.ศ.</th><th>Used for</th></tr></thead>
+        <tbody>${EDITIONS.map((e) => html`<tr><td>${e.title}</td><td class="r">${e.year}</td><td class="r">${e.be}</td><td>${e.use}</td></tr>`)}
+        <tr><td>Load Calculation V1.25 worksheet</td><td class="r">V1.25</td><td class="r">n/a</td><td>Tables 1 to 8: insulation thickness, door protection, door opening time, products, fan motor, lighting, forklift and motor factor</td></tr></tbody></table>
 
       ${S('r-basis', '5', 'Design basis')}
       <h3 class="r-h3">5.1 Outdoor design condition</h3>
@@ -241,12 +244,15 @@ function Body({ project, results, data }) {
       </figure>
       ${tot.extras > 0 && html`<p>Loads outside V1.25 entered for this project add ${f(tot.extras)} kW, which brings the grand total to ${f(tot.req + tot.extras)} kW.</p>`}
 
-      ${S('r-disc', '9', 'Discussion and recommendations')}
+      <${AshraeSection} rows=${rows} tot=${tot} S=${S} />
+
+      ${S('r-disc', '10', 'Discussion and recommendations')}
       <${Discussion} rows=${rows} tot=${tot} />
 
-      ${S('r-concl', '10', 'Conclusion')}
-      <p>The ${n === 1 ? 'room' : `${n} rooms`} of ${project.name} need a total refrigeration capacity of <b>${f(tot.req)} kW (${f(tot.req / TR)} TR)</b>${tot.extras > 0 ? `, or ${f(tot.req + tot.extras)} kW with the loads outside V1.25` : ''}.${largest ? ` The largest single requirement is ${largest.room.name} at ${f(largest.result.totals.required)} kW.` : ''}</p>
-      <p>Each evaporator should be selected for at least the required capacity in Table 8.1 at its room design temperature, and each condensing unit for the sum of the rooms it serves. These figures rest on the inputs in Sections 5 and 7. If the product throughput, the door use or the room conditions change, the calculation should be run again before equipment is ordered.</p>
+      ${S('r-concl', '11', 'Conclusion')}
+      ${tot.isA ? html`<p>On the ASHRAE basis the ${n === 1 ? 'room' : `${n} rooms`} of ${project.name} need a total cooling capacity of <b>${f(tot.reqA)} kW (${f(tot.reqA / TR)} TR)</b>. The V1.25 worksheet gives ${f(tot.req)} kW for the same rooms; Section 9 explains the difference room by room.</p>`
+        : html`<p>The ${n === 1 ? 'room' : `${n} rooms`} of ${project.name} need a total refrigeration capacity of <b>${f(tot.req)} kW (${f(tot.req / TR)} TR)</b>${tot.extras > 0 ? `, or ${f(tot.req + tot.extras)} kW with the loads outside V1.25` : ''}.${largest ? ` The largest single requirement is ${largest.room.name} at ${f(largest.result.totals.required)} kW.` : ''} The ASHRAE method gives ${f(tot.reqA)} kW for the same rooms (Section 9).</p>`}
+      <p>Each evaporator should be selected for at least the required capacity ${tot.isA ? 'in Table 9.1' : 'in Table 8.1'} at its room design temperature, and each condensing unit for the sum of the rooms it serves. These figures rest on the inputs in Sections 5 and 7. If the product throughput, the door use or the room conditions change, the calculation should be run again before equipment is ordered.</p>
     </section>
 
     <section>
@@ -349,6 +355,48 @@ function RoomCalc({ no, x, project, data }) {
     <${Sub}>Q<sub>req</sub> = ${f(t.total)} × (1 + ${t.safetyFactor}/100) × 24 / ${t.runHours} = <b>${f(t.required)} kW (${f(t.required / TR)} TR)</b><//>
     <p>${share[0][0]} is the largest part of this room's load at ${share[0][2]} %, followed by ${share[1][0].toLowerCase()} at ${share[1][2]} %.</p>
   </div>`;
+}
+
+function AshraeSection({ rows, tot, S }) {
+  const ac = rows.filter((x) => x.ash?.kind === 'ac'), ref = rows.filter((x) => x.ash?.kind === 'refrigeration');
+  const basis = [...new Map(rows.flatMap((x) => x.ash?.basis || []).map((b) => [b[0], b])).values()];
+  return html`
+      ${S('r-ash', '9', 'Comparison with ASHRAE')}
+      <p>Every room was also run through the ASHRAE method with the same room data. This section states what the ASHRAE basis does differently, gives both results side by side, and lists the reasons for each difference. The reasons are worked out from the two calculations, largest first.</p>
+      <h3 class="r-h3">9.1 What the ASHRAE basis changes</h3>
+      ${ref.length > 0 && html`<p>For refrigerated rooms the method is that of the ASHRAE Handbook—Refrigeration (2026, พ.ศ. 2569). Compared with Section 6:</p>
+      <${Eq} no="9.1"><i>U</i> = 1 / (1/<i>h</i><sub>i</sub> + Σ <i>L</i>/<i>k</i> + 1/<i>h</i><sub>o</sub>)<//>
+      <${Eq} no="9.2"><i>q</i><sub>t</sub> = <i>U</i> × <i>A</i> × (<i>T</i><sub>o</sub> + Δ<i>T</i><sub>sun</sub> − <i>T</i><sub>r</sub>) / 1000<//>
+      <${Eq} no="9.3"><i>D</i><sub>t</sub> = <i>n</i> × (<i>P</i> × θ<sub>p</sub> + 60 × θ<sub>o</sub>) / 3600<//>
+      <${Eq} no="9.4"><i>Q</i><sub>req</sub> = [(<i>q</i><sub>t</sub> + <i>q</i><sub>i</sub> + <i>Q</i><sub>product</sub> + <i>q</i><sub>internal</sub>) × (1 + <i>SF</i>/100) + <i>q</i><sub>fan</sub> + <i>q</i><sub>defrost</sub>] × 24 / <i>t</i><sub>run</sub><//>
+      <${Where} rows=${[[html`<i>h</i><sub>i</sub>, <i>h</i><sub>o</sub>`, 'surface film coefficients: 8.29 vertical, 9.26 heat flow up, 6.13 heat flow down, 34.0 outdoors (Fundamentals 2025, Ch. 26)', 'W/m²·K'], [html`Δ<i>T</i><sub>sun</sub>`, 'allowance for sun effect on outside walls and exposed roofs (Refrigeration handbook table)', 'K'], [html`<i>P</i>`, 'door passages per hour', '-'], [html`θ<sub>p</sub>`, 'time for one passage, open and close', 's'], [html`<i>q</i><sub>defrost</sub>`, 'defrost heat reaching the room', 'kW']]} />
+      <p>The safety factor applies to the four load segments only. Fans and defrost are equipment-related loads and are added after it. The density of moist air is (1 + W)/v from the Fundamentals equations at site pressure.</p>`}
+      ${ac.length > 0 && html`<p>For air-conditioned rooms the radiant time series (RTS) method of the ASHRAE Handbook—Fundamentals (2025, พ.ศ. 2568), Chapter 18, replaces the cold-room method. Each hour of the design day:</p>
+      <${Eq} no="9.5"><i>t</i><sub>e</sub> = <i>t</i><sub>o</sub> + (α/<i>h</i><sub>o</sub>) × <i>E</i><sub>t</sub> − εΔ<i>R</i>/<i>h</i><sub>o</sub><//>
+      <${Eq} no="9.6"><i>q</i><sub>θ</sub> = <i>U A</i> Σ<sub>j</sub> <i>c</i><sub>j</sub> (<i>t</i><sub>e,θ−j</sub> − <i>t</i><sub>r</sub>)<//>
+      <${Eq} no="9.7"><i>Q</i><sub>r,θ</sub> = Σ<sub>j</sub> <i>r</i><sub>j</sub> <i>q</i><sub>r,θ−j</sub><//>
+      <${Eq} no="9.8"><i>V</i><sub>oz</sub> = (<i>R</i><sub>p</sub> <i>P</i><sub>z</sub> + <i>R</i><sub>a</sub> <i>A</i><sub>z</sub>) / <i>E</i><sub>z</sub><//>
+      <${Eq} no="9.9"><i>q</i><sub>s</sub> = 1.23 <i>Q</i> Δ<i>t</i>;  <i>q</i><sub>l</sub> = 3010 <i>Q</i> Δ<i>W</i><//>
+      <${Where} rows=${[[html`<i>t</i><sub>e</sub>`, 'sol-air temperature of an outside surface', '°C'], [html`<i>E</i><sub>t</sub>`, 'total solar irradiance on the surface, ASHRAE clear-sky model with the station taub and taud', 'W/m²'], [html`<i>c</i><sub>j</sub>`, 'conduction time series of the wall or roof', '-'], [html`<i>r</i><sub>j</sub>`, 'radiant time series of the room', '-'], [html`<i>q</i><sub>r</sub>`, 'radiant part of each heat gain', 'W'], [html`<i>V</i><sub>oz</sub>`, 'outdoor air for the zone (Standard 62.1-2025)', 'L/s'], [html`<i>Q</i>`, 'air flow; constants for standard air, scaled for site pressure', 'L/s']]} />
+      <p>The peak is the largest coil load over all hours of the 21st day of each month. Room sensible load sets the supply air flow; room latent load and outdoor air give the coil load and the sensible heat ratio.</p>`}
+
+      <h3 class="r-h3">9.2 Results side by side</h3>
+      <table class="r-t r-small"><caption>Table 9.1 Required capacity, V1.25 and ASHRAE (kW)</caption>
+        <thead><tr><th>Room</th><th>Type</th><th class="r">V1.25</th><th class="r">ASHRAE</th><th class="r">Difference</th><th class="r">%</th></tr></thead>
+        <tbody>${rows.filter((x) => x.cmp).map((x) => html`<tr><td>${x.room.name}</td><td>${x.room.roomType}</td><td class="r">${f(x.cmp.v125)}</td><td class="r">${f(x.cmp.ashrae)}</td><td class="r">${x.cmp.delta >= 0 ? '+' : '−'}${f(Math.abs(x.cmp.delta))}</td><td class="r">${x.cmp.pct >= 0 ? '+' : '−'}${f(Math.abs(x.cmp.pct), 0)}</td></tr>`)}</tbody>
+        <tfoot><tr><td colspan="2">Total</td><td class="r">${f(tot.req)}</td><td class="r">${f(tot.reqA)}</td><td class="r">${tot.reqA - tot.req >= 0 ? '+' : '−'}${f(Math.abs(tot.reqA - tot.req))}</td><td class="r">${tot.reqA - tot.req >= 0 ? '+' : '−'}${f(Math.abs(((tot.reqA - tot.req) / (tot.req || 1)) * 100), 0)}</td></tr></tfoot></table>
+
+      <h3 class="r-h3">9.3 Reasons, room by room</h3>
+      ${rows.filter((x) => x.cmp).map((x) => html`<div class="r-keep">
+        <h4 class="r-h4">${x.room.name}: ${f(x.cmp.v125)} → ${f(x.cmp.ashrae)} kW</h4>
+        <table class="r-t r-small"><thead><tr><th>Part</th><th class="r">V1.25</th><th class="r">ASHRAE</th><th class="r">Δ</th></tr></thead>
+          <tbody>${x.cmp.rows.map((r) => html`<tr><td>${r.label}</td><td class="r">${fs(r.v125)}</td><td class="r">${fs(r.ashrae)}</td><td class="r">${r.delta >= 0 ? '+' : '−'}${f(Math.abs(r.delta))}</td></tr>`)}</tbody></table>
+        <ol class="r-list">${x.cmp.reasons.map((r) => html`<li>${r.replace(/\s*[—–]\s*/g, ', ')}</li>`)}</ol>
+        ${x.ash?.kind === 'ac' && html`<p>Peak in ${MONTHS[x.ash.peak.month - 1]} at ${x.ash.peak.hour}:00 with ${f(x.ash.peak.To, 1)} °C outdoors. Supply air ${f(x.ash.peak.supplyLs, 0)} L/s at ${x.ash.peak.supplyT} °C; outdoor air ${f(x.ash.ventilation.used, 0)} L/s for ${x.ash.people.count} people (${x.ash.ventilation.category.name}).</p>`}
+      </div>`)}
+
+      <h3 class="r-h3">9.4 Values the designer should confirm</h3>
+      <table class="r-t r-small"><thead><tr><th>Item</th><th>Value used</th></tr></thead><tbody>${basis.map(([k, v]) => html`<tr><td>${k}</td><td>${v}</td></tr>`)}</tbody></table>`;
 }
 
 function Discussion({ rows, tot }) {

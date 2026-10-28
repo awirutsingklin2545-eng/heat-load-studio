@@ -94,5 +94,36 @@ const BASE = process.env.BASE || 'http://localhost:8766/';
   log('report has method+toc:', rtxt.includes('Gosney'), rtxt.includes('Contents'), '| total', (rtxt.match(/Total required capacity\s*([0-9.,]+) kW/) || [])[1]);
   await p.emulateMedia({ media: 'print' });
   await p.pdf({ path: (process.env.OUT || '/tmp/') + 'report.pdf', preferCSSPageSize: true, printBackground: true });
+  if (process.env.ASH) {
+    const S = process.env.SNAP || '/tmp/';
+    await p.emulateMedia({ media: 'screen' }); await p.click('text=← Back to project'); await p.waitForSelector('#sec-basis');
+    await p.click('#basis-ASHRAE'); await p.waitForSelector('#sec-summary-ash');
+    log('ASHRAE PROJECT', await p.textContent('#sec-summary-ash .big.inline'));
+    for (const tr of await p.$$eval('#sec-compare tbody tr', (l) => l.map((x) => [...x.cells].slice(0, 5).map((c) => c.innerText).join(' | ')))) log('   ', tr);
+    await p.locator('#sec-summary-ash').screenshot({ path: S + 'ash-summary.png' });
+    await p.locator('#sec-compare').screenshot({ path: S + 'ash-compare.png' });
+    // an office on floor 2
+    { const h = await p.evaluate(() => location.hash); await p.locator('.flr').nth(1).locator('button.add', { hasText: '+ Room' }).click();
+      await p.waitForFunction((h0) => location.hash !== h0 && document.querySelector('.editor')?.dataset.room === location.hash.split('/').pop(), h); }
+    await set(p, 'Room name', 'OF-01 Office'); await pick(p, 'Room type', 'Air Conditioning');
+    for (const [l, v] of [['Room temperature', 24], ['Room RH', 50], ['Height H', 3], ['Width W', 6], ['Length L', 10]]) await set(p, l, v);
+    await pick(p, 'Insulation (ceiling, walls default)', 'PU');
+    await pick(p, 'Other side', 'Manual entry', 2); await set(p, 'Outside temperature', 26, 2);
+    await pick(p, 'Other side', 'Manual entry', 3); await set(p, 'Outside temperature', 26, 3);
+    await pick(p, 'Construction', 'Brick 100 mm, plastered both sides', 0); await pick(p, 'Faces', 'W', 0);
+    await set(p, 'Window area', 6, 0); await set(p, 'SHGC (normal)', 0.6);
+    await pick(p, 'Construction', 'Brick 100 mm, plastered both sides', 1); await pick(p, 'Faces', 'S', 1);
+    await set(p, 'People', 6);
+    await p.waitForTimeout(500);
+    log('OF-01 ASHRAE', await p.textContent('.results .big b'), '|', await p.textContent('.results .sub2'), '|', await p.textContent('.results .cmpline'));
+    await p.screenshot({ path: S + 'ash-room.png' });
+    await p.locator('#sec-roomcmp').screenshot({ path: S + 'ash-roomcmp.png' });
+    await p.locator('#sec-ashrae').screenshot({ path: S + 'ash-inputs.png' });
+    await p.locator('.results').screenshot({ path: S + 'ash-results.png' });
+    await p.click('text=Project overview'); await p.click('#openreport'); await p.waitForSelector('#printpdf');
+    await p.waitForFunction(() => / pages$|failed|did not load/.test(document.querySelector('#reportstate')?.textContent || ''), null, { timeout: 60000 });
+    log('ASHRAE report:', await p.textContent('#reportstate'));
+    await p.emulateMedia({ media: 'print' }); await p.pdf({ path: S + 'report-ashrae.pdf', preferCSSPageSize: true, printBackground: true }); await p.emulateMedia({ media: 'screen' });
+  }
   log('errors', errs); await b.close();
 })();

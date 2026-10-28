@@ -78,3 +78,4 @@
 .r-legend{display:flex;gap:12pt;font-size:8.2pt;margin:4pt 0 0 30%}
 .r-legend i{display:inline-block;width:8pt;height:8pt;margin-right:3pt;vertical-align:-1pt}
 .r-fig figcaption{font-weight:600;font-size:9pt;margin-top:5pt}
+.r-keep{break-inside:avoid;margin-bottom:6pt}
