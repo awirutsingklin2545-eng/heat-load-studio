@@ -26,8 +26,9 @@ const BASE = process.env.BASE || 'http://localhost:8766/';
       doors: [[1, { n: 4, W: 2.4, H: 3, min: 15, E: 'No protection (E = 0)' }]], workers: 6, fork: { t: 50 } },
   ];
   for (const [k, r] of rooms.entries()) {
+    const prevHash = await p.evaluate(() => location.hash);
     if (k === 0) await p.click('.node.r a'); else { await p.locator('.flr').nth(0).locator('button.add', { hasText: '+ Room' }).click(); }
-    await p.waitForSelector('#sec-general');
+    await p.waitForFunction((h) => location.hash !== h && location.hash.includes('/r/') && document.querySelector('.editor')?.dataset.room === location.hash.split('/').pop(), prevHash);
     await set(p, 'Room name', r.name); await pick(p, 'Room type', r.type);
     for (const [l, v] of [['Room temperature', r.T], ['Room RH', r.RH], ['Height H', r.H], ['Width W', r.W], ['Length L', r.L]]) await set(p, l, v);
     await pick(p, 'Insulation (ceiling, walls default)', r.ins);
@@ -54,7 +55,8 @@ const BASE = process.env.BASE || 'http://localhost:8766/';
     w.forEach((x) => log('    ', x));
   }
   // floor 2 processing
-  await p.click('button.add:has-text("+ Floor")'); await p.locator('.flr').nth(1).locator('button.add', { hasText: '+ Room' }).click(); await p.waitForSelector('#sec-general');
+  await p.click('button.add:has-text("+ Floor")'); { const h = await p.evaluate(() => location.hash); await p.locator('.flr').nth(1).locator('button.add', { hasText: '+ Room' }).click();
+    await p.waitForFunction((h0) => location.hash !== h0 && document.querySelector('.editor')?.dataset.room === location.hash.split('/').pop(), h); }
   await set(p, 'Room name', 'PR-01 Cutting'); await pick(p, 'Room type', 'Processing Area');
   for (const [l, v] of [['Room temperature', 12], ['Room RH', 75], ['Height H', 4], ['Width W', 15], ['Length L', 20]]) await set(p, l, v);
   await pick(p, 'Insulation (ceiling, walls default)', 'PU'); for (let i = 0; i < 4; i++) await set(p, 'Outside temperature', 30, i);
@@ -77,5 +79,10 @@ const BASE = process.env.BASE || 'http://localhost:8766/';
   await p.locator('.node.r').first().hover(); await p.locator('.node.r').first().locator('button[title="Rename room"]').click();
   log('rename input focused:', await p.evaluate(() => document.activeElement?.classList.contains('ren')));
   await p.keyboard.press('Escape');
+  await p.click('text=Project overview'); await p.click('#openreport'); await p.waitForSelector('#printpdf');
+  const rtxt = await p.textContent('.report');
+  log('report formulas:', rtxt.includes('q_full = 0.221'), '| total', (rtxt.match(/Total required capacity([0-9.,]+) kW/) || [])[1]);
+  await p.emulateMedia({ media: 'print' });
+  await p.pdf({ path: (process.env.OUT || '/tmp/') + 'report.pdf', format: 'A4', printBackground: true });
   log('errors', errs); await b.close();
 })();

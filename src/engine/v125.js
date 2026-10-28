@@ -134,7 +134,7 @@ export function calcRoomV125(room, data) {
       const gapOne = safe(() => { const q = rho_r * (gapCMH / 3600) * (hi - h_r); return q < 0 ? 0 : q; });
       const qGap = safe(() => n0(d.count) * gapOne);
       const q = isLoading ? qGap : qDoor;
-      doors.push({ name: `Wall ${i + 1} Door ${j + 1}`, Tin, RH: num(d.RH), count: n0(d.count), A, hi, rho_i, h_r, rho_r,
+      doors.push({ name: `Wall ${i + 1} Door ${j + 1}`, wall: i + 1, slot: j + 1, W: n0(d.W), H: n0(d.H), openMin: n0(d.openMin), Tin, RH: num(d.RH), count: n0(d.count), A, hi, rho_i, h_r, rho_r,
         Fm, qFull, Dt, Df, E: n0(d.E), qDoor, loading: isLoading, gapArea: Math.ceil(gapArea * 1000 - 1e-9) / 1000, gapCMH, qGap, q });
     }
   }

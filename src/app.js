@@ -3,19 +3,20 @@ import { render } from 'preact';
 import { useState, useEffect, useMemo, useRef, useCallback } from 'preact/hooks';
 import { html, Num, Txt, Sel, kW, fmt } from './ui/fields.js';
 import { RoomEditor, ResultsPanel, partsOf } from './ui/room.js';
+import { Report } from './ui/report.js';
 import { calcRoomV125, ENGINE_VERSION } from './engine/v125.js';
 import { exportWorkbook } from './export/excel.js';
 import { extractV125 } from './data/fromMaster.js';
 import * as db from './store.js';
 import { newProject, newFloor, newRoom, eachRoom, findRoom, roomWarnings, toHlp, fromHlp, cloneProject, MASTER_DEFAULTS, uid, excelSerial, syncLinks, migrate } from './model.js';
 
-export const APP_VERSION = '0.2.2';
+export const APP_VERSION = '0.3.0';
 const JSZip = window.JSZip;
 
 // ---------- routing: #/  #/p/<id>  #/p/<id>/r/<roomId>  #/settings ----------
 const parseRoute = () => {
   const p = location.hash.replace(/^#\/?/, '').split('/').filter(Boolean);
-  if (p[0] === 'p' && p[1]) return { view: 'project', id: p[1], room: p[2] === 'r' ? p[3] : null };
+  if (p[0] === 'p' && p[1]) return { view: 'project', id: p[1], room: p[2] === 'r' ? p[3] : null, report: p[2] === 'report' };
   if (p[0] === 'settings') return { view: 'settings' };
   return { view: 'home' };
 };
@@ -188,6 +189,7 @@ function ProjectView({ route, data, master }) {
 
   if (missing) return html`<${Shell} route=${route}><main class="page"><p class="err">Project not found on this device.</p><a class="btn" href="#/">Back to projects</a></main></${Shell}>`;
   if (!project) return html`<${Shell} route=${route}><main class="page"><p>Loading…</p></main></${Shell}>`;
+  if (route.report) return html`<${Report} project=${project} results=${results} data=${data} />`;
   const sel = route.room ? findRoom(project, route.room) : null;
   const statusEl = html`<span class=${'save ' + status} role="status">${{ saved: 'Saved ✓', saving: 'Saving…', error: 'Save failed' }[status]}</span>`;
   const crumbs = html`<a href="#/">Projects</a><span>›</span><a href=${`#/p/${project.id}`}>${project.name}</a>${sel && html`<span>›</span><span>${sel.floor.name}</span><span>›</span><b>${sel.room.name}</b>`}`;
@@ -197,9 +199,9 @@ function ProjectView({ route, data, master }) {
     <div class="layout">
       <${Tree} project=${project} results=${results} sel=${sel} update=${update} />
       ${sel
-        ? html`<main class="main"><${RoomEditor} room=${sel.room} data=${data} result=${results.get(sel.room.id)?.result} warnings=${results.get(sel.room.id)?.warnings || []}
+        ? html`<main class="main"><${RoomEditor} key=${sel.room.id} room=${sel.room} data=${data} result=${results.get(sel.room.id)?.result} warnings=${results.get(sel.room.id)?.warnings || []}
             project=${project} onChange=${(fn) => update((p) => fn(findRoom(p, sel.room.id).room))} /></main>
-          <${ResultsPanel} room=${sel.room} result=${results.get(sel.room.id)?.result} warnings=${results.get(sel.room.id)?.warnings || []} />`
+          <${ResultsPanel} key=${'res-' + sel.room.id} room=${sel.room} result=${results.get(sel.room.id)?.result} warnings=${results.get(sel.room.id)?.warnings || []} />`
         : html`<main class="main wide"><${Overview} project=${project} results=${results} update=${update} master=${master} /></main>`}
     </div>
   </${Shell}>`;
@@ -329,7 +331,7 @@ function Overview({ project, results, update, master }) {
       <div class="row">
         <button class="btn" id="exportxlsx" disabled=${busy || rows.length === 0} onClick=${exportXlsx}>${busy ? 'Building…' : 'Excel — Load Calculation V1.25'}</button>
         <button class="btn ghost" onClick=${() => download(`${safeName(project.name)}.hlp`, toHlp(project), 'application/json')}>Project file (.hlp)</button>
-        <button class="btn ghost" disabled title="Coming in a later version">PDF report (next)</button>
+        <a class="btn" id="openreport" href=${`#/p/${project.id}/report`}>PDF calculation report</a>
       </div>
       ${msg && html`<p class=${msg.ok ? 'okline' : 'err'}>${msg.text}</p>`}
       <p class="note">One sheet per room, values written into input cells only; formulas, dropdowns and the title block stay as in the master. Loads outside V1.25 go to the sheet "App extras".</p>

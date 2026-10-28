@@ -18,7 +18,7 @@ export function RoomEditor({ room, data, result, warnings, onChange, project }) 
   const others = [...eachRoom(project)].map((x) => x.room).filter((x) => x.id !== room.id);
   const srcOptions = [{ value: 'outside', label: `Outside (${project.outdoor.T} °C / ${project.outdoor.RH} %)` },
     ...others.map((o) => ({ value: o.id, label: `${o.name} (${o.T ?? '—'} °C)` })), { value: '__manual', label: 'Manual entry' }];
-  return html`<div class="editor">
+  return html`<div class="editor" data-room=${room.id}>
     <section class="card" id="sec-general">
       <h3>General <span class="th">ข้อมูลห้อง</span></h3>
       <div class="grid">
