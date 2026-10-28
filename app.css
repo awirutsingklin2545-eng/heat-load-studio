@@ -1,15 +1,12 @@
-/* Heat Load Studio — energy palette: ink navy, cold blue → teal → amber → heat orange */
+/* Heat Load Studio — light theme only (Earn's choice); energy palette: cold blue → teal → amber → heat orange */
 :root{
   --bg:#F3F6F9;--surface:#FFFFFF;--surface2:#F8FAFC;--ink:#0E1B2C;--muted:#516174;--line:#D6DEE7;
   --volt:#0B8F7A;--volt-bg:#DDF3EF;--crit:#C2362F;--crit-bg:#FBE4E2;--warn:#B7791F;--warn-bg:#FBF1DC;--info:#1F6FD1;--info-bg:#E4EFFC;
   --c-trans:#1F6FD1;--c-inf:#2AA3C9;--c-prod:#E3A23A;--c-eq:#E0601B;
   --f-d:"Chakra Petch","IBM Plex Sans Thai",system-ui,sans-serif;--f-b:"IBM Plex Sans Thai",system-ui,-apple-system,"Segoe UI",sans-serif;--f-m:"IBM Plex Mono",ui-monospace,Consolas,monospace;
 }
-@media (prefers-color-scheme:dark){:root{
-  --bg:#0B1420;--surface:#121E2D;--surface2:#0F1926;--ink:#E6EDF5;--muted:#9AABBE;--line:#24364B;
-  --volt:#4FD1B8;--volt-bg:#10302B;--crit:#F08079;--crit-bg:#3A1A18;--warn:#E3B45C;--warn-bg:#352A14;--info:#6AA8F0;--info-bg:#15283F;
-  --c-trans:#6AA8F0;--c-inf:#4FC3E0;--c-prod:#E9B65C;--c-eq:#F2955C;color-scheme:dark}}
 *{box-sizing:border-box}
+html{color-scheme:light}
 html,body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--f-b);font-size:14.5px;line-height:1.55}
 a{color:var(--info)} h1,h3{font-family:var(--f-d);font-weight:600;margin:0}
 h1{font-size:24px} h3{font-size:16px;display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
@@ -76,6 +73,8 @@ button.link.danger{color:var(--crit)}
 .inp{display:flex;align-items:center;border:1px solid var(--line);border-radius:8px;background:var(--surface2);overflow:hidden}
 .inp input,.inp select{font:inherit;border:0;background:transparent;color:var(--ink);padding:6px 8px;width:100%;min-width:0;font-variant-numeric:tabular-nums}
 .inp select{cursor:pointer}
+select option,select optgroup{color:var(--ink);background:#FFFFFF}
+select option:checked{background:var(--volt-bg);color:var(--ink)}
 .inp:focus-within{border-color:var(--volt)}
 .fld.bad .inp{border-color:var(--crit)}
 .unit{font-family:var(--f-m);font-size:11.5px;color:var(--muted);padding:0 8px;white-space:nowrap}
