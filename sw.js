@@ -1,5 +1,5 @@
 // Offline cache. Bump VERSION on every release so installed apps pick up the update.
-const VERSION = 'hls-0.2.1';
+const VERSION = 'hls-0.2.1b';
 const ASSETS = ['./', './index.html', './app.css', './manifest.webmanifest', './vendor/jszip-3.10.1.min.js',
   './vendor/preact-10.24.3.module.js', './vendor/preact-hooks-10.24.3.module.js', './vendor/htm-3.1.1.module.js',
   './src/app.js', './src/model.js', './src/ui/fields.js', './src/ui/room.js',
@@ -13,6 +13,7 @@ self.addEventListener('message', (e) => { if (e.data === 'skipWaiting') self.ski
 self.addEventListener('fetch', (e) => {
   const req = e.request; if (req.method !== 'GET' || new URL(req.url).origin !== location.origin) return;
   const key = req.mode === 'navigate' ? './index.html' : req;
-  e.respondWith(fetch(req).then((r) => { if (r.ok) { const cp = r.clone(); caches.open(VERSION).then((c) => c.put(key, cp)); } return r; })
+  // no-cache = revalidate with GitHub Pages (ETag), so a new release shows on the next load instead of after 10 min
+  e.respondWith(fetch(req, { cache: 'no-cache' }).then((r) => { if (r.ok) { const cp = r.clone(); caches.open(VERSION).then((c) => c.put(key, cp)); } return r; })
     .catch(() => caches.match(key)));
 });
