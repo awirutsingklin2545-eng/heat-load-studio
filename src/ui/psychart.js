@@ -125,8 +125,8 @@ function ChartBody({ points, links = [], p = 101.325, comfort = false, title, st
       <title>${`${x.text}: ${fmt(x.s.t, 1)} °C, ${fmt(x.s.RH, 0)} % RH, W ${fmt(x.s.W * 1000, 2)} g/kg, h ${fmt(x.s.h, 2)} kJ/kg, Tdp ${fmt(x.s.tdp, 1)} °C, Twb ${fmt(x.s.twb, 1)} °C, v ${fmt(x.s.v, 4)} m³/kg`}</title></g>`)}
   </svg>`;
 
-  const table = html`<table class="pc-table"><thead><tr><th>Point</th><th class="n">DB °C</th><th class="n">RH %</th><th class="n">W g/kg</th><th class="n">h kJ/kg</th><th class="n">Tdp °C</th><th class="n">Twb °C</th><th class="n">ρ kg/m³</th></tr></thead>
-    <tbody>${pts.map((x) => html`<tr><td><i style=${`background:${COLORS[x.kind] || COLORS.other}`}></i>${x.label}</td><td class="n">${fmt(x.s.t, 1)}</td><td class="n">${fmt(x.s.RH, 0)}</td><td class="n">${fmt(x.s.W * 1000, 2)}</td><td class="n">${fmt(x.s.h, 2)}</td><td class="n">${fmt(x.s.tdp, 1)}</td><td class="n">${fmt(x.s.twb, 1)}</td><td class="n">${fmt(x.s.rho, 3)}</td></tr>`)}</tbody></table>`;
+  const table = html`<div class="pc-tablewrap"><table class="pc-table"><thead><tr><th>Point</th><th class="n">DB °C</th><th class="n">RH %</th><th class="n">W g/kg</th><th class="n">h kJ/kg</th><th class="n">Tdp °C</th><th class="n">Twb °C</th><th class="n">ρ kg/m³</th></tr></thead>
+    <tbody>${pts.map((x) => html`<tr><td><i style=${`background:${COLORS[x.kind] || COLORS.other}`}></i>${x.label}</td><td class="n">${fmt(x.s.t, 1)}</td><td class="n">${fmt(x.s.RH, 0)}</td><td class="n">${fmt(x.s.W * 1000, 2)}</td><td class="n">${fmt(x.s.h, 2)}</td><td class="n">${fmt(x.s.tdp, 1)}</td><td class="n">${fmt(x.s.twb, 1)}</td><td class="n">${fmt(x.s.rho, 3)}</td></tr>`)}</tbody></table></div>`;
 
   return html`${pts.length === 0 ? html`<p class="note">Enter a temperature and RH to plot the room.</p>` : svg('pc-svg')}
     ${(showTable || !small) && pts.length > 0 && table}
