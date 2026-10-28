@@ -149,26 +149,25 @@ const quoteSheet = (n) => `'${n.replace(/'/g, "''")}'`;
 
 // ---------- App extras sheet ----------
 function extrasSheetXml(rows, project) {
-  const H = ['Room sheet', 'Room type', 'V1.25 required (kW)', 'Glass (kW)', 'Defrost (kW)', 'Packaging (kW)', 'Grand total (kW)'];
-  const L = ['A', 'B', 'C', 'D', 'E', 'F', 'G'];
+  const H = ['Room sheet', 'Building / floor', 'Room type', 'V1.25 required (kW)', 'Glass (kW)', 'Defrost (kW)', 'Packaging (kW)', 'Grand total (kW)'];
+  const L = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
   const str = (ref, s) => `<c r="${ref}" t="inlineStr"><is><t>${esc(s)}</t></is></c>`;
-  const numc = (ref, n) => `<c r="${ref}"><v>${n}</v></c>`;
+  const numc = (ref, n) => `<c r="${ref}"><v>${Number.isFinite(n) ? n : 0}</v></c>`;
   const fml = (ref, f, v) => `<c r="${ref}"><f>${esc(f)}</f><v>${Number.isFinite(v) ? v : 0}</v></c>`;
   let out = `<row r="1">${str('A1', 'Heat Load Studio — App extras (loads not in V1.25)')}</row>`;
   out += `<row r="2">${str('A2', `Project: ${project.name || ''}`)}${str('D2', `Engine: ${project.engine || ''}`)}</row>`;
   out += `<row r="4">${H.map((h, i) => str(`${L[i]}4`, h)).join('')}</row>`;
   rows.forEach((r, i) => {
-    const n = 5 + i;
-    out += `<row r="${n}">${str(`A${n}`, r.sheet)}${str(`B${n}`, r.roomType || '')}${fml(`C${n}`, `${quoteSheet(r.sheet)}!L79`, r.required)}`
-      + `${numc(`D${n}`, r.glass || 0)}${numc(`E${n}`, r.defrost || 0)}${numc(`F${n}`, r.packaging || 0)}`
-      + `${fml(`G${n}`, `SUM(C${n}:F${n})`, (r.required || 0) + (r.glass || 0) + (r.defrost || 0) + (r.packaging || 0))}</row>`;
+    const n = 5 + i, g = r.glass || 0, d = r.defrost || 0, p = r.packaging || 0;
+    out += `<row r="${n}">${str(`A${n}`, r.sheet)}${str(`B${n}`, r.floor || '')}${str(`C${n}`, r.roomType || '')}${fml(`D${n}`, `${quoteSheet(r.sheet)}!L79`, r.required)}`
+      + `${numc(`E${n}`, g)}${numc(`F${n}`, d)}${numc(`G${n}`, p)}${fml(`H${n}`, `SUM(D${n}:G${n})`, (r.required || 0) + g + d + p)}</row>`;
   });
   const last = 4 + rows.length, t = last + 1;
-  const sum = (k) => rows.reduce((s, r) => s + (r[k] || 0), 0);
-  out += `<row r="${t}">${str(`A${t}`, 'Total')}${['C', 'D', 'E', 'F', 'G'].map((c, j) => fml(`${c}${t}`, `SUM(${c}5:${c}${last})`,
-    [sum('required'), sum('glass'), sum('defrost'), sum('packaging'), sum('required') + sum('glass') + sum('defrost') + sum('packaging')][j])).join('')}</row>`;
+  const sum = (k) => rows.reduce((s, r) => s + (Number.isFinite(r[k]) ? r[k] : 0), 0);
+  const tots = [sum('required'), sum('glass'), sum('defrost'), sum('packaging')];
+  out += `<row r="${t}">${str(`A${t}`, 'Total')}${['D', 'E', 'F', 'G', 'H'].map((c, j) => fml(`${c}${t}`, `SUM(${c}5:${c}${last})`, j < 4 ? tots[j] : tots.reduce((a, b) => a + b, 0))).join('')}</row>`;
   return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">`
-    + `<cols><col min="1" max="1" width="28" customWidth="1"/><col min="2" max="2" width="18" customWidth="1"/><col min="3" max="7" width="20" customWidth="1"/></cols>`
+    + `<cols><col min="1" max="1" width="28" customWidth="1"/><col min="2" max="2" width="24" customWidth="1"/><col min="3" max="3" width="18" customWidth="1"/><col min="4" max="8" width="20" customWidth="1"/></cols>`
     + `<sheetData>${out}</sheetData></worksheet>`;
 }
 
@@ -198,7 +197,7 @@ export async function exportWorkbook(JSZip, masterBytes, rooms, project = {}) {
   const names = sheetNames(rooms.map((x) => x.room.name));
   let sheetTags = '', defNames = '', relTags = '', ctTags = '';
   const extrasRows = [];
-  rooms.forEach(({ room, result, extras = {} }, i) => {
+  rooms.forEach(({ room, result, extras = {}, floor }, i) => {
     let xml = stripCachedValues(master.replace(/ tabSelected="1"/, ''));
     for (const [ref, val] of Object.entries(inputCells(room, project))) xml = setInputValue(xml, ref, val);
     if (result && !project.noCache) for (const [ref, val] of Object.entries(cachedCells(result))) xml = setCachedValue(xml, ref, val);
@@ -214,7 +213,7 @@ export async function exportWorkbook(JSZip, masterBytes, rooms, project = {}) {
     defNames += `<definedName name="_xlnm.Print_Area" localSheetId="${existingSheets + i}">${esc(quoteSheet(names[i]))}!$A$1:$N$80</definedName>`;
     relTags += `<Relationship Id="${rid}" Type="${REL_SHEET}" Target="worksheets/sheet${fileNo}.xml"/>`;
     ctTags += `<Override PartName="/${sheetPath}" ContentType="${CT_SHEET}"/><Override PartName="/${dPath}" ContentType="${CT_DRAWING}"/>`;
-    extrasRows.push({ sheet: names[i], roomType: room.roomType, required: result?.totals.required, ...extras });
+    extrasRows.push({ sheet: names[i], floor, roomType: room.roomType, required: result?.totals.required, ...extras });
     fileNo++; drawNo++;
   });
   // App extras

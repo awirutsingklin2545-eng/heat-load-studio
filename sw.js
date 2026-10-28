@@ -1,6 +1,8 @@
 // Offline cache. Bump VERSION on every release so installed apps pick up the update.
-const VERSION = 'hls-0.1.1';
-const ASSETS = ['./', './index.html', './manifest.webmanifest', './vendor/jszip-3.10.1.min.js',
+const VERSION = 'hls-0.2.0';
+const ASSETS = ['./', './index.html', './app.css', './manifest.webmanifest', './vendor/jszip-3.10.1.min.js',
+  './vendor/preact-10.24.3.module.js', './vendor/preact-hooks-10.24.3.module.js', './vendor/htm-3.1.1.module.js',
+  './src/app.js', './src/model.js', './src/ui/fields.js', './src/ui/room.js',
   './src/engine/v125.js', './src/export/excel.js', './src/data/fromMaster.js', './src/store.js',
   './icons/icon-192.png', './icons/icon-512.png', './icons/maskable-512.png', './icons/apple-touch-icon.png'];
 self.addEventListener('install', (e) => e.waitUntil(caches.open(VERSION).then((c) => c.addAll(ASSETS))));

@@ -5,157 +5,26 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Heat Load Studio</title>
 <meta name="theme-color" content="#0E1B2C">
+<meta name="description" content="Refrigeration and air-conditioning heat load calculator — Load Calculation V1.25 parity.">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icons/icon-192.png">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@600&family=IBM+Plex+Sans+Thai:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
-<style>
-:root{--bg:#F3F6F9;--surface:#fff;--ink:#0E1B2C;--muted:#516174;--line:#D6DEE7;--volt:#0B8F7A;--volt-bg:#DDF3EF;--crit:#C2362F;--crit-bg:#FBE4E2;--warn:#B7791F;--warn-bg:#FBF1DC;
---f-d:"Chakra Petch","IBM Plex Sans Thai",system-ui,sans-serif;--f-b:"IBM Plex Sans Thai",system-ui,"Segoe UI",sans-serif;--f-m:"IBM Plex Mono",ui-monospace,Consolas,monospace}
-@media (prefers-color-scheme:dark){:root{--bg:#0B1420;--surface:#121E2D;--ink:#E6EDF5;--muted:#9AABBE;--line:#24364B;--volt:#4FD1B8;--volt-bg:#10302B;--crit:#F08079;--crit-bg:#3A1A18;--warn:#E3B45C;--warn-bg:#352A14;color-scheme:dark}}
-*{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--f-b);font-size:15px;line-height:1.6}
-.wrap{max-width:860px;margin:0 auto;padding:24px max(16px,env(safe-area-inset-right)) 48px max(16px,env(safe-area-inset-left));display:flex;flex-direction:column;gap:20px}
-header{display:flex;align-items:center;gap:14px}
-header img{width:44px;height:44px;border-radius:10px}
-h1{font-family:var(--f-d);font-size:26px;margin:0;font-weight:600}
-.sub{color:var(--muted);font-size:13px;font-family:var(--f-m)}
-.thermal{height:5px;border-radius:3px;background:linear-gradient(90deg,#1F6FD1,#2AA3C9 30%,#0B8F7A 50%,#E3A23A 72%,#E0601B)}
-.card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px 18px;display:flex;flex-direction:column;gap:10px}
-.card h2{font-family:var(--f-d);font-size:18px;margin:0;display:flex;align-items:center;gap:10px;font-weight:600}
-.step{font-family:var(--f-m);font-size:12px;color:var(--muted)}
-.pill{font-family:var(--f-m);font-size:11.5px;padding:2px 9px;border-radius:999px;background:var(--line);color:var(--muted)}
-.pill.ok{background:var(--volt-bg);color:var(--volt)}.pill.bad{background:var(--crit-bg);color:var(--crit)}.pill.warn{background:var(--warn-bg);color:var(--warn)}
-button,.file{font:inherit;font-weight:500;border:1px solid var(--volt);background:var(--volt);color:#fff;border-radius:8px;padding:9px 16px;cursor:pointer}
-button.ghost{background:transparent;color:var(--volt)}
-button:disabled{opacity:.45;cursor:not-allowed}
-button:focus-visible,.file:focus-within{outline:3px solid var(--volt-bg);outline-offset:2px}
-.row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
-.drop{border:2px dashed var(--line);border-radius:10px;padding:18px;text-align:center;color:var(--muted)}
-.drop.over{border-color:var(--volt);color:var(--volt)}
-table{border-collapse:collapse;width:100%;font-size:13.5px;font-variant-numeric:tabular-nums}
-td,th{padding:6px 8px;border-bottom:1px solid var(--line);text-align:left}
-th{color:var(--muted);font-weight:500;font-size:12.5px}
-td.n{text-align:right;font-family:var(--f-m)}
-.tbl{overflow-x:auto}
-.msg{font-size:14px}
-.err{color:var(--crit)}
-footer{color:var(--muted);font-size:12.5px}
-</style>
+<link rel="stylesheet" href="app.css">
+<script type="importmap">
+{ "imports": {
+  "preact": "./vendor/preact-10.24.3.module.js",
+  "preact/hooks": "./vendor/preact-hooks-10.24.3.module.js",
+  "htm": "./vendor/htm-3.1.1.module.js"
+} }
+</script>
 </head>
 <body>
-<div class="wrap">
-  <header>
-    <img src="icons/icon-192.png" alt="">
-    <div><h1>Heat Load Studio</h1><div class="sub">v0.1.1 · P0 preview · engine <span id="ver"></span></div></div>
-  </header>
-  <div class="thermal" aria-hidden="true"></div>
-
-  <section class="card" id="c1">
-    <h2><span class="step">1</span>Master template <span class="pill" id="p1">not loaded</span></h2>
-    <p class="msg">Load <b>Load Calculation V1.25</b> once. It stays in this browser only and is never uploaded. ไฟล์อยู่ในเครื่องนี้เท่านั้น</p>
-    <div class="drop" id="drop">Drop the .xlsx here or
-      <label class="file"><input type="file" id="file" accept=".xlsx" hidden>Choose file</label>
-    </div>
-    <div class="msg" id="m1"></div>
-  </section>
-
-  <section class="card">
-    <h2><span class="step">2</span>Engine self-test <span class="pill" id="p2">waiting</span></h2>
-    <p class="msg">Golden case: Cold Room 2 °C / 85 %RH, 8 × 10 × 4 m, PU, 1 door, Chicken 5 t/24 h. Expected <b>30.64 kW</b> (V1.25 recalculated).</p>
-    <div class="tbl" id="t2"></div>
-  </section>
-
-  <section class="card">
-    <h2><span class="step">3</span>Excel export test <span class="pill" id="p3">waiting</span></h2>
-    <p class="msg">Builds a workbook from your master with 3 sample rooms (one sheet each) + <b>App extras</b>. Open it in Excel and check that L79 on each sheet matches the table.</p>
-    <div class="row"><button id="bx" disabled>Download test workbook</button></div>
-    <div class="tbl" id="t3"></div>
-  </section>
-
-  <section class="card">
-    <h2><span class="step">4</span>Install as app</h2>
-    <p class="msg" id="m4">Chrome / Edge: click the install icon in the address bar, or the button below. iPhone: Share → Add to Home Screen.</p>
-    <div class="row"><button class="ghost" id="bi" hidden>Install Heat Load Studio</button><span class="pill" id="p4"></span></div>
-  </section>
-
-  <footer>Data stays on this device (IndexedDB). Calculation profile: Load Calculation V1.25 parity.</footer>
-</div>
-
+<div id="root"><div class="boot">Loading Heat Load Studio…</div></div>
+<noscript>Heat Load Studio needs JavaScript.</noscript>
 <script src="vendor/jszip-3.10.1.min.js"></script>
-<script type="module">
-import { calcRoomV125, ENGINE_VERSION } from './src/engine/v125.js';
-import { exportWorkbook } from './src/export/excel.js';
-import { extractV125 } from './src/data/fromMaster.js';
-import { kvGet, kvSet, persist } from './src/store.js';
-const $ = (id) => document.getElementById(id);
-$('ver').textContent = ENGINE_VERSION;
-let master = null, data = null;
-
-const pill = (id, cls, txt) => { const p = $(id); p.className = 'pill ' + cls; p.textContent = txt; };
-const fmt = (x, d = 2) => (Number.isFinite(x) ? x.toFixed(d) : '—');
-
-const golden = { name: 'CR-01 Golden', roomType: 'Cold Room', T: 2, RH: 85, H: 4, W: 8, L: 10,
-  ceiling: { T: 45, type: 'PU' }, floor: { T: 30, type: 'PU', convection: 'Yes' },
-  walls: [{ T: 35, type: 'PU', doors: [{ RH: 60, count: 1, E: 0.8, openMin: 15, W: 2.5, H: 3.0 }] }, { T: 35, type: 'PU' }, { T: 35, type: 'PU' }, { T: 35, type: 'PU' }],
-  products: [{ category: 'Poultry Products', name: 'Chicken', tIn: 10, tOut: 2, ton: 5, hours: 24 }], workers: 2, makeUp: { T: 35, RH: 60, CMH: 0 }, safetyFactor: 15 };
-const samples = [golden,
-  { name: 'FZ-01 IQF', roomType: 'Freezer - IQF', T: -35, RH: 90, H: 4, W: 6, L: 8, ceiling: { T: 45, type: 'PU' }, floor: { T: 30, type: 'PU', convection: 'Yes' },
-    walls: [{ T: 2, doors: [{ RH: 85, count: 1, E: 0.8, openMin: 5, W: 1.2, H: 2.1 }] }, { T: 35 }, { T: 35 }, { T: 30 }],
-    products: [{ category: 'Poultry Products', name: 'Chicken', tIn: 5, tOut: -18, ton: 2, hours: 4 }], workers: 1, safetyFactor: 15 },
-  { name: 'LD-01 Loading', roomType: 'Loading Dock', T: 10, RH: 80, H: 4.5, W: 8, L: 20, ceiling: { T: 45, type: 'PU' }, floor: { T: 30, convection: 'Yes' },
-    walls: [{ T: 35, doors: [{ RH: 75, count: 2, E: 0, openMin: 15, W: 2.4, H: 3.0 }] }, { T: 35 }, { T: 2 }, { T: 35 }],
-    products: [], workers: 4, forklift: { kW: 7, hours: 8, kgPerPallet: 600, tonPerDay: 60 }, safetyFactor: 15 }];
-
-function partsTable(rows) {
-  return `<table><thead><tr><th>Room</th><th>Transmission</th><th>Infiltration</th><th>Product</th><th>Equipment</th><th>Total</th><th>After SF</th><th>Run h</th><th>Required kW</th></tr></thead><tbody>${
-    rows.map(([n, r]) => `<tr><td>${n}</td><td class="n">${fmt(r.transmission.total)}</td><td class="n">${fmt(r.infiltration.total)}</td><td class="n">${fmt(r.product.total)}</td><td class="n">${fmt(r.equipment.total)}</td><td class="n">${fmt(r.totals.total)}</td><td class="n">${fmt(r.totals.afterSF)}</td><td class="n">${r.totals.runHours ?? '—'}</td><td class="n"><b>${fmt(r.totals.required)}</b></td></tr>`).join('')}</tbody></table>`;
-}
-
-async function useMaster(bytes, fromCache) {
-  try {
-    data = await extractV125(JSZip, bytes); master = bytes;
-    if (!fromCache) { await kvSet('master', bytes); await persist(); }
-    pill('p1', 'ok', 'loaded');
-    $('m1').innerHTML = `${fromCache ? 'Loaded from this device. ' : 'Saved on this device. '}${data.foods.length} food items, ${data.roomTypes.length} room types, psychrometric table ${data.psy.T[0]}…${data.psy.T.at(-1)} °C.`;
-    const r = calcRoomV125(golden, data);
-    const pass = Math.abs(r.totals.required - 30.6400317068338) < 1e-6;
-    pill('p2', pass ? 'ok' : 'bad', pass ? `pass · ${fmt(r.totals.required, 4)} kW` : `fail · ${fmt(r.totals.required, 4)} kW`);
-    $('t2').innerHTML = partsTable([[golden.name, r]]);
-    $('bx').disabled = false; pill('p3', '', 'ready');
-  } catch (e) { pill('p1', 'bad', 'error'); $('m1').innerHTML = `<span class="err">${String(e.message || e).replace(/</g, '&lt;')}</span>`; }
-}
-async function readFile(f) { await useMaster(new Uint8Array(await f.arrayBuffer()), false); }
-$('file').addEventListener('change', (e) => e.target.files[0] && readFile(e.target.files[0]));
-const drop = $('drop');
-drop.addEventListener('dragover', (e) => { e.preventDefault(); drop.classList.add('over'); });
-drop.addEventListener('dragleave', () => drop.classList.remove('over'));
-drop.addEventListener('drop', (e) => { e.preventDefault(); drop.classList.remove('over'); const f = e.dataTransfer.files[0]; if (f) readFile(f); });
-
-$('bx').addEventListener('click', async () => {
-  try {
-    $('bx').disabled = true; pill('p3', 'warn', 'building…');
-    const rooms = samples.map((s) => ({ room: s, result: calcRoomV125(s, data), extras: s.name.startsWith('CR') ? { glass: 0, defrost: 0.5 } : {} }));
-    const bytes = await exportWorkbook(JSZip, master, rooms, { name: 'P0 export test', engine: ENGINE_VERSION, userName: 'Earn' });
-    const blob = new Blob([bytes], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `HLS_P0_export_test_${new Date().toISOString().slice(0, 10)}.xlsx`;
-    document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 5000);
-    $('t3').innerHTML = partsTable(rooms.map((x) => [x.room.name, x.result]));
-    pill('p3', 'ok', `downloaded · ${(bytes.length / 1024).toFixed(0)} KB`);
-  } catch (e) { pill('p3', 'bad', 'error'); $('t3').innerHTML = `<span class="err">${String(e.message || e).replace(/</g, '&lt;')}</span>`; }
-  finally { $('bx').disabled = false; }
-});
-
-// install
-let deferred = null;
-window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); deferred = e; $('bi').hidden = false; });
-$('bi').addEventListener('click', async () => { if (!deferred) return; deferred.prompt(); await deferred.userChoice; deferred = null; $('bi').hidden = true; });
-if (matchMedia('(display-mode: standalone)').matches) pill('p4', 'ok', 'running as installed app');
-if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
-
-kvGet('master').then((b) => b && useMaster(b, true)).catch(() => {});
-</script>
+<script type="module" src="src/app.js"></script>
 </body>
 </html>

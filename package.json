@@ -3,6 +3,16 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "scripts": { "test": "node --test test/*.test.mjs" },
-  "devDependencies": { "jszip": "3.10.1" }
+  "scripts": {
+    "test": "node --test test/*.test.mjs"
+  },
+  "devDependencies": {
+    "jszip": "3.10.1",
+    "preact": "10.24.3",
+    "htm": "3.1.1"
+  },
+  "dependencies": {
+    "htm": "^3.1.1",
+    "preact": "^10.24.3"
+  }
 }
