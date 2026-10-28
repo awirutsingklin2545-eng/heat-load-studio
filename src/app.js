@@ -11,10 +11,11 @@ import { compareRoom } from './engine/compare.js';
 import { BasisCard, StandardsCard, ComparisonCard, AshraeSummary } from './ui/ashrae-ui.js';
 import { exportWorkbook } from './export/excel.js';
 import { extractV125 } from './data/fromMaster.js';
+import { BUILTIN } from './data/tables.js';
 import * as db from './store.js';
 import { newProject, newFloor, newRoom, eachRoom, findRoom, roomWarnings, toHlp, fromHlp, cloneProject, MASTER_DEFAULTS, uid, excelSerial, syncLinks, migrate } from './model.js';
 
-export const APP_VERSION = '0.6.0';
+export const APP_VERSION = '0.6.1';
 const JSZip = window.JSZip;
 
 // ---------- routing: #/  #/p/<id>  #/p/<id>/r/<roomId>  #/settings ----------
@@ -51,23 +52,23 @@ function calcAll(project, data) {
 // ---------- App ----------
 function App() {
   const [route, setRoute] = useState(parseRoute());
-  const [data, setData] = useState(undefined);       // undefined = loading, null = no master
+  const [data, setData] = useState(BUILTIN);         // built-in V1.25 tables until a master file is loaded
   const [masterBytes, setMasterBytes] = useState(null);
   const [masterErr, setMasterErr] = useState('');
   useEffect(() => { const f = () => setRoute(parseRoute()); addEventListener('hashchange', f); return () => removeEventListener('hashchange', f); }, []);
-  useEffect(() => { db.kvGet('master').then((b) => (b ? useMaster(b, true) : setData(null))).catch(() => setData(null)); }, []);
+  useEffect(() => { db.kvGet('master').then((b) => b && useMaster(b, true)).catch(() => {}); }, []);
   async function useMaster(bytes, cached) {
     try {
       const d = await extractV125(JSZip, bytes);
       if (!cached) { await db.kvSet('master', bytes); await db.kvSet('masterLoadedAt', new Date().toISOString()); db.persist(); }
       setMasterBytes(bytes); setData(d); setMasterErr('');
-    } catch (e) { setMasterErr(e.message || String(e)); if (cached) setData(null); }
+      return true;
+    } catch (e) { setMasterErr(e.message || String(e)); return false; }
   }
   const loadFile = async (f) => useMaster(new Uint8Array(await f.arrayBuffer()), false);
 
-  if (data === undefined) return html`<div class="boot">Loading…</div>`;
-  if (!data || route.view === 'settings') return html`<${Shell} route=${route}><${Settings} data=${data} err=${masterErr} onFile=${loadFile} /></${Shell}>`;
-  if (route.view === 'project') return html`<${ProjectView} key=${route.id} route=${route} data=${data} master=${masterBytes} />`;
+  if (route.view === 'settings') return html`<${Shell} route=${route}><${Settings} data=${data} master=${masterBytes} err=${masterErr} onFile=${loadFile} /></${Shell}>`;
+  if (route.view === 'project') return html`<${ProjectView} key=${route.id} route=${route} data=${data} master=${masterBytes} onMaster=${(bytes) => useMaster(bytes, false)} />`;
   return html`<${Shell} route=${route}><${Home} data=${data} /></${Shell}>`;
 }
 
@@ -84,7 +85,7 @@ function Shell({ route, crumbs, status, children }) {
 }
 
 // ---------- Settings / master ----------
-function Settings({ data, err, onFile }) {
+function Settings({ data, master, err, onFile }) {
   const [loadedAt, setLoadedAt] = useState(null);
   const [selftest, setSelftest] = useState(null);
   useEffect(() => { db.kvGet('masterLoadedAt').then(setLoadedAt); }, [data]);
@@ -97,15 +98,16 @@ function Settings({ data, err, onFile }) {
   }, [data]);
   const [over, setOver] = useState(false);
   return html`<main class="page narrow">
-    <h1>${data ? 'Settings' : 'Welcome'} <span class="th">${data ? 'ตั้งค่า' : 'เริ่มต้นใช้งาน'}</span></h1>
+    <h1>Settings <span class="th">ตั้งค่า</span></h1>
     <section class="card">
-      <h3>Master template <span class=${'pill ' + (data ? 'ok' : 'warn')}>${data ? 'loaded' : 'needed'}</span></h3>
-      <p>The app reads every table (psychrometric data, foods, insulation, fan database) from <b>Load Calculation V1.25</b> and writes Excel exports into it. The file stays in this browser only. <span class="th">ไฟล์อยู่ในเครื่องนี้เท่านั้น ไม่ถูกอัปโหลด</span></p>
+      <h3>Master template <span class=${'pill ' + (master ? 'ok' : 'warn')}>${master ? 'loaded' : 'not loaded'}</span></h3>
+      <p>The tables of <b>Load Calculation V1.25</b> are built into the app, so you can calculate on any device without the file. The master file is needed only to export the Excel form; the app asks for it when you export. A master loaded here also replaces the built-in tables, so a newer version of the worksheet takes effect. <span class="th">ไม่มีไฟล์ master ก็ใช้คำนวณได้ ต้องใช้เฉพาะตอน Export Excel</span></p>
       <div class=${'drop ' + (over ? 'over' : '')} onDragOver=${(e) => { e.preventDefault(); setOver(true); }} onDragLeave=${() => setOver(false)}
         onDrop=${(e) => { e.preventDefault(); setOver(false); const f = e.dataTransfer.files[0]; if (f) onFile(f); }}>
         Drop the .xlsx here or <label class="btn"><input type="file" accept=".xlsx" hidden id="masterfile" onChange=${(e) => e.target.files[0] && onFile(e.target.files[0])} />${data ? 'Replace master' : 'Choose master file'}</label>
       </div>
       ${err && html`<p class="err">${err}</p>`}
+      <p class="note">Tables in use: <b>${master ? 'from the master file' : 'built in (V1.25)'}</b></p>
       ${data && html`<p class="note">${data.foods.length} food items · ${data.roomTypes.length} room types · psychrometric table ${data.psy.T[0]}…${data.psy.T.at(-1)} °C · ${data.abf.length} ABF fan points${loadedAt ? ` · loaded ${new Date(loadedAt).toLocaleString()}` : ''}</p>`}
       ${selftest && html`<p>Engine self-test (golden case 30.64 kW): <span class=${'pill ' + (selftest.pass ? 'ok' : 'bad')}>${selftest.pass ? 'pass' : 'fail'} · ${kW(selftest.r, 4)} kW</span></p>`}
     </section>
@@ -157,7 +159,7 @@ function Home({ data }) {
 }
 
 // ---------- Project ----------
-function ProjectView({ route, data, master }) {
+function ProjectView({ route, data, master, onMaster }) {
   const [project, setProject] = useState(null);
   const [status, setStatus] = useState('saved');
   const [missing, setMissing] = useState(false);
@@ -209,7 +211,7 @@ function ProjectView({ route, data, master }) {
         ? html`<main class="main"><${RoomEditor} key=${sel.room.id} room=${sel.room} data=${data} result=${results.get(sel.room.id)?.result} warnings=${results.get(sel.room.id)?.warnings || []}
             project=${project} cmp=${results.get(sel.room.id)?.cmp} onChange=${(fn) => update((p) => fn(findRoom(p, sel.room.id).room))} /></main>
           <${ResultsPanel} key=${'res-' + sel.room.id} project=${project} room=${sel.room} res=${results.get(sel.room.id)} result=${results.get(sel.room.id)?.result} warnings=${results.get(sel.room.id)?.warnings || []} />`
-        : html`<main class="main wide"><${Overview} project=${project} results=${results} update=${update} master=${master} /></main>`}
+        : html`<main class="main wide"><${Overview} project=${project} results=${results} update=${update} master=${master} onMaster=${onMaster} /></main>`}
     </div>
   </${Shell}>`;
 }
@@ -256,7 +258,8 @@ function Tree({ project, results, sel, update }) {
   </nav>`;
 }
 
-function Overview({ project, results, update, master }) {
+function Overview({ project, results, update, master, onMaster }) {
+  const pickRef = useRef(null);
   const [msg, setMsg] = useState(null);
   const [busy, setBusy] = useState(false);
   const rows = [...eachRoom(project)].map((x) => ({ ...x, ...results.get(x.room.id) }));
@@ -267,11 +270,13 @@ function Overview({ project, results, update, master }) {
     return s;
   };
   const all = sumParts(rows);
-  async function exportXlsx() {
+  async function exportXlsx(bytesIn) {
+    const masterNow = bytesIn instanceof Uint8Array ? bytesIn : master;
+    if (!masterNow) { pickRef.current?.click(); return; }
     setBusy(true); setMsg(null);
     try {
       const rooms = rows.map((x) => ({ room: x.room, result: x.result, extras: x.room.extras, floor: `${x.building.name} / ${x.floor.name}` }));
-      const bytes = await exportWorkbook(JSZip, master, rooms, { name: project.name, engine: ENGINE_VERSION, userName: project.engineer || undefined, dateSerial: excelSerial() });
+      const bytes = await exportWorkbook(JSZip, masterNow, rooms, { name: project.name, engine: ENGINE_VERSION, userName: project.engineer || undefined, dateSerial: excelSerial() });
       download(`${safeName(project.name)}_LoadCalc_V1.25_Rev${project.revision}_${today()}.xlsx`, bytes, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
       setMsg({ ok: true, text: `Exported ${rooms.length} room sheet${rooms.length === 1 ? '' : 's'} + App extras.` });
     } catch (e) { setMsg({ ok: false, text: e.message || String(e) }); }
@@ -353,10 +358,12 @@ function Overview({ project, results, update, master }) {
       ${!project.defaultsConfirmed && html`<p class="warnline">Default values are not confirmed yet.</p>`}
       ${errs.length > 0 && html`<p class="warnline">Rooms with missing data: ${errs.map((x) => x.room.name).join(', ')}. They export with blank cells.</p>`}
       <div class="row">
-        <button class="btn" id="exportxlsx" disabled=${busy || rows.length === 0} onClick=${exportXlsx}>${busy ? 'Building…' : 'Excel — Load Calculation V1.25'}</button>
+        <button class="btn" id="exportxlsx" disabled=${busy || rows.length === 0} onClick=${() => exportXlsx()}>${busy ? 'Building…' : 'Excel — Load Calculation V1.25'}</button>
+        <input type="file" accept=".xlsx" hidden id="exportmaster" ref=${pickRef} onChange=${async (e) => { const f = e.target.files[0]; e.target.value = ''; if (!f) return; const b = new Uint8Array(await f.arrayBuffer()); if (await onMaster(b)) exportXlsx(b); else setMsg({ ok: false, text: 'That file is not a Load Calculation V1.25 master.' }); }} />
         <button class="btn ghost" onClick=${() => download(`${safeName(project.name)}.hlp`, toHlp(project), 'application/json')}>Project file (.hlp)</button>
         <a class="btn" id="openreport" href=${`#/p/${project.id}/report`}>PDF calculation report</a>
       </div>
+      ${!master && html`<p class="note">The first Excel export on this device asks for the master file (Load Calculation V1.25 .xlsx); after that it is remembered. <span class="th">ครั้งแรกจะให้เลือกไฟล์ master</span></p>`}
       ${msg && html`<p class=${msg.ok ? 'okline' : 'err'}>${msg.text}</p>`}
       <p class="note">One sheet per room, values written into input cells only; formulas, dropdowns and the title block stay as in the master. Loads outside V1.25 go to the sheet "App extras".</p>
     </section>
