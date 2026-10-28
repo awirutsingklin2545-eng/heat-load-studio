@@ -24,3 +24,13 @@ test('stripCachedValues removes every formula result', () => {
   const xml = '<c r="A1"><f>1</f><v>1</v></c><c r="A2" t="str"><f t="shared" si="0"/><v>x</v></c><c r="A3"><v>7</v></c>';
   assert.equal(stripCachedValues(xml), '<c r="A1"><f>1</f></c><c r="A2"><f t="shared" si="0"/></c><c r="A3"><v>7</v></c>');
 });
+test('empty cached value <v/> is stripped and never doubled (Excel repair bug, v0.1.0)', async () => {
+  const { setCachedValue, assertSheetXml } = await import('../src/export/excel.js');
+  const xml = '<row r="78"><c r="L78" s="89" t="str"><f>IF(1,"",1)</f><v/></c></row>';
+  const stripped = stripCachedValues(xml);
+  assert.equal(stripped, '<row r="78"><c r="L78" s="89"><f>IF(1,"",1)</f></c></row>');
+  const cached = setCachedValue(xml, 'L78', 20);
+  assert.equal(cached, '<row r="78"><c r="L78" s="89"><f>IF(1,"",1)</f><v>20</v></c></row>');
+  assert.throws(() => assertSheetXml('<row r="1"><c r="A1"><f>1</f><v/><v>2</v></c></row>'), /2 values/);
+  assert.throws(() => assertSheetXml('<row r="1"><c r="B1"/><c r="A1"/></row>'), /out of order/);
+});

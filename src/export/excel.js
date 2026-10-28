@@ -107,14 +107,32 @@ function insertCell(xml, ref, cxml) {
 }
 // Remove cached results from every formula cell, so any spreadsheet app must calculate them.
 export function stripCachedValues(xml) {
-  return xml.replace(/(<c [^>]*?)( t="(?:str|e|b|n)")?(>(?:<f[^>]*\/>|<f[^>]*>[^<]*<\/f>))<v>[^<]*<\/v>/g, '$1$3');
+  // handles <v>…</v> and the empty form <v/> (Excel writes it for "" results)
+  return xml.replace(/(<c [^>]*?)( t="(?:str|e|b|n)")?(>(?:<f[^>]*\/>|<f[^>]*>[^<]*<\/f>))(?:<v>[^<]*<\/v>|<v\/>)/g, '$1$3');
 }
 export function setCachedValue(xml, ref, value) {
   const c = findCell(xml, ref);
   if (!c || !c.isFormula || !Number.isFinite(value)) return xml;
-  let body = c.body.replace(/ t="(str|e|b)"/, '');
-  body = /<v>[^<]*<\/v>/.test(body) ? body.replace(/<v>[^<]*<\/v>/, `<v>${value}</v>`) : body.replace('</c>', `<v>${value}</v></c>`);
+  let body = c.body.replace(/ t="(str|e|b)"/, '').replace(/<v>[^<]*<\/v>|<v\/>/g, '');
+  body = body.replace('</c>', `<v>${value}</v></c>`);
   return xml.slice(0, c.start) + body + xml.slice(c.end);
+}
+
+// Excel-strict structural check of a worksheet: one value per cell, cells in column order.
+export function assertSheetXml(xml, name = 'sheet') {
+  const problems = [];
+  const reCell = /<c r="([A-Z]+)(\d+)"[^>]*?(?:\/>|>([\s\S]*?)<\/c>)/g; let m, lastRow = -1, lastCol = 0;
+  while ((m = reCell.exec(xml))) {
+    const col = colNum(m[1]), row = +m[2];
+    if (row !== lastRow) { lastRow = row; lastCol = 0; }
+    if (col <= lastCol) problems.push(`${m[1]}${m[2]} out of order`);
+    lastCol = col;
+    const body = m[3] || '';
+    if ((body.match(/<v[ >\/]/g) || []).length > 1) problems.push(`${m[1]}${m[2]} has 2 values`);
+    if ((body.match(/<f[ >\/]/g) || []).length > 1) problems.push(`${m[1]}${m[2]} has 2 formulas`);
+    if (problems.length > 5) break;
+  }
+  if (problems.length) throw new Error(`Excel export check failed on "${name}": ${problems.join(', ')}`);
 }
 
 // ---------- sheet names ----------
@@ -185,6 +203,7 @@ export async function exportWorkbook(JSZip, masterBytes, rooms, project = {}) {
     for (const [ref, val] of Object.entries(inputCells(room, project))) xml = setInputValue(xml, ref, val);
     if (result && !project.noCache) for (const [ref, val] of Object.entries(cachedCells(result))) xml = setCachedValue(xml, ref, val);
     if (i === 0) xml = xml.replace('<sheetView ', '<sheetView tabSelected="1" ');
+    assertSheetXml(xml, names[i]);
     const sheetPath = `xl/worksheets/sheet${fileNo}.xml`, dPath = `xl/drawings/drawing${drawNo}.xml`;
     zip.file(sheetPath, xml);
     zip.file(`xl/worksheets/_rels/sheet${fileNo}.xml.rels`, masterRels.replace('drawing1.xml', `drawing${drawNo}.xml`));
