@@ -49,7 +49,7 @@ export function newProject(name = 'New project') {
   return {
     schema: SCHEMA, id: uid(), name, client: '', site: '', engineer: '', jobNo: '', notes: '',
     createdAt: now, updatedAt: now, revision: 'A', defaultsConfirmed: false, profile: 'V1.25 parity',
-    outdoor: { T: 35, RH: 60 },
+    outdoor: { T: 35, RH: 60 }, altitude: 0,
     buildings: [{ id: uid(), name: 'Building 1', floors: [newFloor('Floor 1')] }],
   };
 }
@@ -136,6 +136,7 @@ export function fromHlp(text) {
 export function migrate(p) {
   p.schema = p.schema || 1;
   p.outdoor = p.outdoor || { T: 35, RH: 60 };
+  if (p.altitude == null) p.altitude = 0;
   for (const { room } of eachRoom(p)) {
     room.walls.forEach((w) => { if (!('source' in w)) w.source = null; });
     room.extras = room.extras || { glass: 0, defrost: 0, packaging: 0 };

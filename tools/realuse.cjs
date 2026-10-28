@@ -79,6 +79,14 @@ const BASE = process.env.BASE || 'http://localhost:8766/';
   await p.locator('.node.r').first().hover(); await p.locator('.node.r').first().locator('button[title="Rename room"]').click();
   log('rename input focused:', await p.evaluate(() => document.activeElement?.classList.contains('ren')));
   await p.keyboard.press('Escape');
+  if (process.env.SNAP) {
+    await p.locator('.node.r a', { hasText: 'AR-01' }).click(); await p.waitForSelector('.results .pc-svg');
+    await p.screenshot({ path: process.env.SNAP + 'room.png', fullPage: false });
+    await p.locator('.results .pc-svg').screenshot({ path: process.env.SNAP + 'room-chart.png' });
+    await p.click('text=Project overview'); await p.waitForSelector('#sec-psy .pc-svg');
+    await p.locator('#sec-psy').screenshot({ path: process.env.SNAP + 'overview-chart.png' });
+    await p.locator('#sec-psy button', { hasText: 'Enlarge' }).click(); await p.screenshot({ path: process.env.SNAP + 'modal.png' }); await p.locator('.pc-modal button', { hasText: 'Close' }).click();
+  }
   await p.click('text=Project overview'); await p.click('#openreport'); await p.waitForSelector('#printpdf');
   await p.waitForFunction(() => / pages$|failed|did not load/.test(document.querySelector('#reportstate')?.textContent || ''), null, { timeout: 60000 });
   log('report state:', await p.textContent('#reportstate'));

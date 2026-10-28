@@ -107,6 +107,21 @@ caption{text-align:left;font-weight:600;padding:6px 0;font-family:var(--f-d)}
 @media (max-width:1100px){.layout{grid-template-columns:220px minmax(0,1fr)}.results{grid-column:2;position:static;max-height:none;border-left:0;border-top:1px solid var(--line)}.main.wide{grid-column:2}}
 @media (max-width:720px){.layout{grid-template-columns:1fr}.tree{position:static;max-height:none;border-right:0;border-bottom:1px solid var(--line)}.results,.main.wide{grid-column:1}.node .acts{display:inline-flex}.crumbs{display:none}.eq{grid-template-columns:1fr 90px auto}}
 @media print{.top,.tree,.thermal{display:none}}
+/* ---------- psychrometric chart ---------- */
+.pc{display:flex;flex-direction:column;gap:6px;min-width:0}
+.pc-head{display:flex;justify-content:space-between;align-items:baseline;gap:8px;font-size:13px}
+.pc-tools{display:flex;gap:10px;align-items:center}
+.pc-svg{width:100%;height:auto;display:block;font-family:var(--f-b)}
+.pc-ax{font-size:10px;fill:#516174}.pc-lab{font-size:10.5px;fill:#516174}.pc-note{font-size:9.5px;fill:#7A8999}
+.pc-rh{font-size:9px;fill:#5B8DBF}.pc-h{font-size:9px;fill:#9A7F4E}.pc-z{font-size:9.5px;fill:#0B8F7A;font-weight:600}
+.pc-pl{font-size:10.5px;fill:#0E1B2C;font-weight:600;paint-order:stroke;stroke:#fff;stroke-width:3px}
+.pc-compact>svg .pc-pl{font-size:12px}.pc-compact>svg .pc-ax{font-size:11px}.pc-compact>svg .pc-lab{font-size:11px}.pc-compact>svg .pc-rh,.pc-compact>svg .pc-h{font-size:10px}
+.pc-table{width:100%;border-collapse:collapse;font-size:12px}
+.pc-table th,.pc-table td{border-bottom:1px solid var(--line);padding:3px 6px;text-align:left}
+.pc-table .n{text-align:right;font-family:var(--f-m)}
+.pc-table i{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:5px}
+.pc-modal{position:fixed;inset:0;background:rgba(14,27,44,.45);z-index:50;display:flex;align-items:center;justify-content:center;padding:16px}
+.pc-modal-in{background:#fff;border-radius:12px;padding:14px 16px;width:min(1000px,100%);max-height:100%;overflow:auto;display:flex;flex-direction:column;gap:8px}
 /* ---------- report shell (screen). Page content styles live in report.css, laid out by paged.js ---------- */
 .report-shell{background:#E6EBF0;min-height:100vh;padding:0 0 30px}
 .rtool{position:sticky;top:0;z-index:5;background:#fff;border-bottom:1px solid var(--line);display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:10px 16px;margin-bottom:16px}

@@ -4,13 +4,14 @@ import { useState, useEffect, useMemo, useRef, useCallback } from 'preact/hooks'
 import { html, Num, Txt, Sel, kW, fmt } from './ui/fields.js';
 import { RoomEditor, ResultsPanel, partsOf } from './ui/room.js';
 import { Report } from './ui/report.js';
+import { PsyChart, projectPressure } from './ui/psychart.js';
 import { calcRoomV125, ENGINE_VERSION } from './engine/v125.js';
 import { exportWorkbook } from './export/excel.js';
 import { extractV125 } from './data/fromMaster.js';
 import * as db from './store.js';
 import { newProject, newFloor, newRoom, eachRoom, findRoom, roomWarnings, toHlp, fromHlp, cloneProject, MASTER_DEFAULTS, uid, excelSerial, syncLinks, migrate } from './model.js';
 
-export const APP_VERSION = '0.4.0';
+export const APP_VERSION = '0.5.0';
 const JSZip = window.JSZip;
 
 // ---------- routing: #/  #/p/<id>  #/p/<id>/r/<roomId>  #/settings ----------
@@ -201,7 +202,7 @@ function ProjectView({ route, data, master }) {
       ${sel
         ? html`<main class="main"><${RoomEditor} key=${sel.room.id} room=${sel.room} data=${data} result=${results.get(sel.room.id)?.result} warnings=${results.get(sel.room.id)?.warnings || []}
             project=${project} onChange=${(fn) => update((p) => fn(findRoom(p, sel.room.id).room))} /></main>
-          <${ResultsPanel} key=${'res-' + sel.room.id} room=${sel.room} result=${results.get(sel.room.id)?.result} warnings=${results.get(sel.room.id)?.warnings || []} />`
+          <${ResultsPanel} key=${'res-' + sel.room.id} project=${project} room=${sel.room} result=${results.get(sel.room.id)?.result} warnings=${results.get(sel.room.id)?.warnings || []} />`
         : html`<main class="main wide"><${Overview} project=${project} results=${results} update=${update} master=${master} /></main>`}
     </div>
   </${Shell}>`;
@@ -286,7 +287,16 @@ function Overview({ project, results, update, master }) {
       <div class="grid">
         <${Num} label="Outdoor dry bulb" unit="°C" value=${project.outdoor.T} onChange=${(v) => update((p) => { p.outdoor.T = v; })} />
         <${Num} label="Outdoor RH" unit="%" value=${project.outdoor.RH} min=${0} max=${100} onChange=${(v) => update((p) => { p.outdoor.RH = v; })} />
+        <${Num} label="Site altitude" unit="m" value=${project.altitude ?? 0} min=${-400} max=${5000} onChange=${(v) => update((p) => { p.altitude = v ?? 0; })} hint=${`Air pressure ${kW(projectPressure(project), 2)} kPa (ASHRAE Fundamentals Eq. 3)`} />
       </div>
+    </section>
+
+    <section class="card" id="sec-psy">
+      <h3>Psychrometric chart <span class="th">จุดอากาศของทุกห้อง อัปเดตทันทีที่แก้ค่า</span></h3>
+      <${PsyChart} title=${`${project.name}: design points`} p=${projectPressure(project)} comfort=${rows.some((x) => x.room.roomType === 'Air Conditioning')}
+        points=${[...(project.outdoor.T != null && project.outdoor.RH != null ? [{ key: 'out', label: 'Outdoor', t: project.outdoor.T, RH: project.outdoor.RH, kind: 'outdoor' }] : []),
+          ...rows.filter((x) => x.room.T != null && x.room.RH != null).map((x) => ({ key: x.room.id, label: x.room.name, t: x.room.T, RH: x.room.RH, kind: 'room' }))]} />
+      <p class="note">Chart properties use the ASHRAE Fundamentals 2025 equations at the site pressure. The V1.25 calculation itself reads its own table at sea level (finding F8, about 2 % different).</p>
     </section>
 
     <section class=${'card ' + (project.defaultsConfirmed ? '' : 'attention')}>

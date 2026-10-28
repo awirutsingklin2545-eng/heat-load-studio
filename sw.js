@@ -1,9 +1,9 @@
 // Offline cache. Bump VERSION on every release so installed apps pick up the update.
-const VERSION = 'hls-0.4.0';
+const VERSION = 'hls-0.5.0';
 const ASSETS = ['./', './index.html', './app.css', './report.css', './vendor/paged-0.4.3.min.js', './manifest.webmanifest', './vendor/jszip-3.10.1.min.js',
   './vendor/preact-10.24.3.module.js', './vendor/preact-hooks-10.24.3.module.js', './vendor/htm-3.1.1.module.js',
   './src/app.js', './src/model.js', './src/ui/fields.js', './src/ui/room.js', './src/ui/report.js',
-  './src/engine/v125.js', './src/export/excel.js', './src/data/fromMaster.js', './src/store.js',
+  './src/engine/v125.js', './src/engine/psychro.js', './src/ui/psychart.js', './src/export/excel.js', './src/data/fromMaster.js', './src/store.js',
   './icons/icon-192.png', './icons/icon-512.png', './icons/maskable-512.png', './icons/apple-touch-icon.png'];
 // activate a new release right away instead of waiting for every tab to close
 self.addEventListener('install', (e) => e.waitUntil(caches.open(VERSION).then((c) => c.addAll(ASSETS)).then(() => self.skipWaiting())));

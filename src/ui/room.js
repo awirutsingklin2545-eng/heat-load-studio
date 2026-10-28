@@ -1,6 +1,7 @@
 // Room editor (V1.25 parity inputs) and live results panel.
 import { html, Num, Txt, Sel, kW, fmt } from './fields.js';
 import { DOOR_E, INSULATION, OPEN_MIN_HINT, LIMITS, eachRoom } from '../model.js';
+import { PsyChart, roomPoints, projectPressure } from './psychart.js';
 
 const WALL_SIDE = ['along length (L)', 'along width (W)', 'along width (W)', 'along length (L)'];
 
@@ -165,7 +166,8 @@ export function RoomEditor({ room, data, result, warnings, onChange, project }) 
 const PARTS = [['transmission', 'Transmission', 'var(--c-trans)'], ['infiltration', 'Infiltration', 'var(--c-inf)'], ['product', 'Product', 'var(--c-prod)'], ['equipment', 'Equipment', 'var(--c-eq)']];
 export function partsOf(res) { return PARTS.map(([k, label, color]) => ({ k, label, color, v: res ? res[k].total : 0 })); }
 
-export function ResultsPanel({ room, result, warnings }) {
+export function ResultsPanel({ project, room, result, warnings }) {
+  const rp = roomPoints(project, room);
   const t = result?.totals;
   const parts = partsOf(result);
   const pos = parts.reduce((s, p) => s + Math.max(0, p.v), 0) || 1;
@@ -183,5 +185,6 @@ export function ResultsPanel({ room, result, warnings }) {
       ${extra !== 0 && html`<tr><td>+ App extras</td><td class="n">${kW(extra)}</td><td></td></tr><tr class="sum"><td>Grand total</td><td class="n"><b>${kW((t?.required || 0) + extra)}</b></td><td></td></tr>`}
     </tbody></table>
     ${warnings.length > 0 && html`<ul class="warns">${warnings.map((w) => html`<li class=${w.level}>${w.text}</li>`)}</ul>`}
+    <${PsyChart} compact title="Psychrometric chart" p=${projectPressure(project)} points=${rp.points} links=${rp.links} comfort=${room.roomType === 'Air Conditioning'} />
   </aside>`;
 }
