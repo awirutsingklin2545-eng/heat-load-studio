@@ -1,0 +1,6 @@
+node_modules/
+# Company files never go into this public repo
+*.xlsx
+*.xls
+test/golden.json
+src/data/*.json
