@@ -81,3 +81,31 @@ test('RTS room: peak is found, parts add up, outdoor air follows Standard 62.1',
   assert.ok(a.peak.SHR > 0.5 && a.peak.SHR <= 1);
   assert.ok(a.cl.solar > 0);
 });
+
+// Expert-review invariants (2026-10-29): with no sun the RTS result must equal steady U·A·ΔT, and the
+// day's total cooling load must equal the day's total heat gain (RTS and CTS each sum to 1).
+import { conductionTimeSeries as cts2 } from '../src/engine/conduction.js';
+const darkStation = (range) => { const s = JSON.parse(JSON.stringify(STATIONS['484560'])); s.wmo = `dark${range}`; s.lat = -89.9;
+  s.monthly.db04 = s.monthly.db04.map(() => 35); s.monthly.mcwb04 = s.monthly.mcwb04.map(() => 26); s.monthly.mcdbr5 = s.monthly.mcdbr5.map(() => range); s.monthly.mcwbr5 = s.monthly.mcwbr5.map(() => 0); STATIONS[s.wmo] = s; return s.wmo; };
+const bareOffice = () => { const r = newRoom('OF', 'Air Conditioning'); Object.assign(r, { T: 24, RH: 50, H: 3, W: 6, L: 10 }); r.ceiling.type = 'PU';
+  r.walls.forEach((w, i) => { w.T = i < 2 ? 35 : 26; w.source = i < 2 ? 'outside' : null; });
+  r.ash = { walls: [{ orient: 'W', construction: 'brick' }, { orient: 'S', construction: 'brick' }], ac: { people: 0, ach: 0, ventLs: 0, equipW: 0 }, lighting: { Wm2: 0 } }; return r; };
+const Us = () => { const t = data.thkPU.filter(([x]) => x <= 24).pop()[1]; return [cts2(construction('brick', { kIns: data.k.PU, thk: t })).U, cts2(construction('panel', { kIns: data.k.PU, thk: t })).U]; };
+test('RTS with no sun and no swing equals steady conduction every hour', () => {
+  const p = newProject(); p.ash = { station: darkStation(0), month: '6' };
+  const a = calcRoomASHRAE(bareOffice(), p, data), [Ub, Up] = Us();
+  const hand = Ub * 48 * 11 + Up * 48 * 2 + Up * 60 * 21;
+  for (const q of a.hourly.roomS) assert.ok(Math.abs(q - hand) < 0.05, `${q} vs ${hand}`);
+});
+test('RTS conserves energy over the design day', () => {
+  const p = newProject(); p.ash = { station: darkStation(9), month: '6' };
+  const a = calcRoomASHRAE(bareOffice(), p, data), [Ub, Up] = Us();
+  const hand = Ub * 48 * a.hourly.To.reduce((s, t) => s + (t - 24), 0) + (Up * 48 * 2 + Up * 60 * 21) * 24;
+  const app = a.hourly.roomS.reduce((s, x) => s + x, 0);
+  assert.ok(Math.abs(app - hand) / hand < 1e-3, `${app} vs ${hand}`);
+});
+test('product leaving exactly at its freezing point adds no latent heat (ASHRAE basis)', () => {
+  const r = newRoom('X'); Object.assign(r, { roomType: 'Cold Room', T: -25, RH: 90, H: 4, W: 5, L: 6 });
+  r.products = [{ category: 'Poultry Products', name: 'Chicken', tIn: 5, tOut: -2.8, ton: 4, hours: 8 }];
+  assert.equal(calcRoomASHRAE(r, newProject(), data).product.items[0].ql, 0);
+});

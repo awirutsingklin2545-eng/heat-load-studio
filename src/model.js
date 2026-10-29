@@ -105,6 +105,7 @@ export function roomWarnings(room, result, data) {
   (result?.product.items || []).forEach((p) => {
     if (p.q < 0) w.push({ level: 'warn', text: `Product ${p.idx}: load is negative (T in < T out). V1.25 keeps the negative value (finding F17).` });
     if (p.tf != null && p.tin === p.tf && p.tout < p.tf) w.push({ level: 'warn', text: `Product ${p.idx}: enters exactly at its freezing point; V1.25 skips the latent heat (F6).` });
+    if (p.tf != null && p.tout === p.tf && p.tin > p.tf) w.push({ level: 'warn', text: `Product ${p.idx}: leaves exactly at its freezing point; V1.25 still adds the full latent heat of freezing (F19). Check whether the product is meant to freeze.` });
     if (p.tout != null && room.T != null && p.tout < room.T) w.push({ level: 'warn', text: `Product ${p.idx}: leaving temperature is below room air temperature.` });
     if (p.name && !(p.hours > 0)) w.push({ level: 'error', text: `Product ${p.idx}: cooling time is required.` });
   });

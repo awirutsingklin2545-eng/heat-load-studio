@@ -1,5 +1,5 @@
 // Offline cache. Bump VERSION on every release so installed apps pick up the update.
-const VERSION = 'hls-0.6.1';
+const VERSION = 'hls-0.6.2';
 const ASSETS = ['./', './index.html', './app.css', './report.css', './vendor/paged-0.4.3.min.js', './manifest.webmanifest', './vendor/jszip-3.10.1.min.js',
   './vendor/preact-10.24.3.module.js', './vendor/preact-hooks-10.24.3.module.js', './vendor/htm-3.1.1.module.js',
   './src/app.js', './src/model.js', './src/ui/fields.js', './src/ui/room.js', './src/ui/report.js',

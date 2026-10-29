@@ -15,7 +15,7 @@ import { BUILTIN } from './data/tables.js';
 import * as db from './store.js';
 import { newProject, newFloor, newRoom, eachRoom, findRoom, roomWarnings, toHlp, fromHlp, cloneProject, MASTER_DEFAULTS, uid, excelSerial, syncLinks, migrate } from './model.js';
 
-export const APP_VERSION = '0.6.1';
+export const APP_VERSION = '0.6.2';
 const JSZip = window.JSZip;
 
 // ---------- routing: #/  #/p/<id>  #/p/<id>/r/<roomId>  #/settings ----------
@@ -209,7 +209,7 @@ function ProjectView({ route, data, master, onMaster }) {
       <${Tree} project=${project} results=${results} sel=${sel} update=${update} />
       ${sel
         ? html`<main class="main"><${RoomEditor} key=${sel.room.id} room=${sel.room} data=${data} result=${results.get(sel.room.id)?.result} warnings=${results.get(sel.room.id)?.warnings || []}
-            project=${project} cmp=${results.get(sel.room.id)?.cmp} onChange=${(fn) => update((p) => fn(findRoom(p, sel.room.id).room))} /></main>
+            project=${project} cmp=${results.get(sel.room.id)?.cmp} active=${results.get(sel.room.id)?.active} onChange=${(fn) => update((p) => fn(findRoom(p, sel.room.id).room))} /></main>
           <${ResultsPanel} key=${'res-' + sel.room.id} project=${project} room=${sel.room} res=${results.get(sel.room.id)} result=${results.get(sel.room.id)?.result} warnings=${results.get(sel.room.id)?.warnings || []} />`
         : html`<main class="main wide"><${Overview} project=${project} results=${results} update=${update} master=${master} onMaster=${onMaster} /></main>`}
     </div>

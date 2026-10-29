@@ -6,7 +6,7 @@ import { AshraeInputs, AshraeResults, RoomComparison } from './ashrae-ui.js';
 
 const WALL_SIDE = ['along length (L)', 'along width (W)', 'along width (W)', 'along length (L)'];
 
-export function RoomEditor({ room, data, result, warnings, onChange, project, cmp }) {
+export function RoomEditor({ room, data, result, warnings, onChange, project, cmp, active }) {
   const set = (fn) => onChange((r) => { fn(r); });
   const ceilType = room.ceiling.type;
   const thk = (t, type) => {
@@ -21,6 +21,7 @@ export function RoomEditor({ room, data, result, warnings, onChange, project, cm
   const srcOptions = [{ value: 'outside', label: `Outside (${project.outdoor.T} °C / ${project.outdoor.RH} %)` },
     ...others.map((o) => ({ value: o.id, label: `${o.name} (${o.T ?? '—'} °C)` })), { value: '__manual', label: 'Manual entry' }];
   return html`<div class="editor" data-room=${room.id}>
+    <div class="mobres" aria-live="polite"><span>${project.basis === 'ASHRAE' ? 'ASHRAE' : 'V1.25'}</span><b>${kW(active?.totals.required)} kW</b>${cmp && html`<span class="mut">V1.25 ${kW(cmp.v125)} · ASHRAE ${kW(cmp.ashrae)}</span>`}</div>
     <section class="card" id="sec-general">
       <h3>General <span class="th">ข้อมูลห้อง</span></h3>
       <div class="grid">

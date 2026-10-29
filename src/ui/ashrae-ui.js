@@ -20,7 +20,7 @@ export function AshraeInputs({ room, project, set }) {
     <p class="note">These values are used only by the ASHRAE profile. The V1.25 sheet and its Excel export do not change.</p>
     <div class="grid">
       <${Num} label="Safety factor (ASHRAE)" unit="%" value=${a.sf} min=${0} onChange=${S(['sf'])} hint=${ac ? 'RTS gives the peak hourly load; add a margin only if the design brief asks for one' : 'Handbook: generally 10 %, on transmission, infiltration, product and internal loads'} />
-      ${!ac && html`<${Num} label="Running time" unit="h/day" value=${room.ash?.runHours ?? null} placeholder=${String(a.runHours ?? (room.roomType === 'Freezer - Trolley' ? 24 : (room.T ?? 99) <= 5 ? 20 : 24))} onChange=${S(['runHours'])} hint="Empty = V1.25 rule (20 h at 5 °C and below). Set from the defrost plan." />`}
+      ${!ac && html`<${Num} label="Running time" unit="h/day" value=${room.ash?.runHours ?? null} placeholder=${String(a.runHours ?? (room.roomType === 'Freezer - Trolley' ? 24 : (room.T ?? 99) <= 5 ? 20 : 24))} min=${1} max=${24} onChange=${S(['runHours'])} hint="Empty = V1.25 rule (20 h at 5 °C and below). Set from the defrost plan." />`}
     </div>
 
     ${!ac && html`
@@ -67,7 +67,7 @@ export function AshraeInputs({ room, project, set }) {
         <${Num} label="Occupied from" unit="h" value=${a.ac.occStart} min=${0} max=${24} onChange=${S(['ac', 'occStart'])} />
         <${Num} label="Occupied to" unit="h" value=${a.ac.occEnd} min=${0} max=${24} onChange=${S(['ac', 'occEnd'])} />
         <${Num} label="Zone air distribution Ez" value=${a.ac.Ez} onChange=${S(['ac', 'Ez'])} hint="1.0 ceiling supply of cool air" />
-        <${Num} label="Outdoor air (override)" unit="L/s" value=${room.ash?.ac?.ventLs ?? null} placeholder="62.1" onChange=${S(['ac', 'ventLs'])} />
+        <${Num} label="Outdoor air (override)" unit="L/s" value=${room.ash?.ac?.ventLs ?? null} placeholder=${(() => { const o = OCCUPANCY.find((x) => x.name === a.ac.category) || OCCUPANCY[0]; const ar = (room.W || 0) * (room.L || 0); const pz = room.ash?.ac?.people ?? Math.round((o.density * ar) / 100); return `${Math.round((o.Rp * pz + o.Ra * ar) / (a.ac.Ez || 1))} (Std 62.1)`; })()} onChange=${S(['ac', 'ventLs'])} />
         <${Num} label="Infiltration" unit="ACH" value=${a.ac.ach} onChange=${S(['ac', 'ach'])} />
         <${Num} label="Supply air temperature" unit="°C" value=${a.ac.supplyT} onChange=${S(['ac', 'supplyT'])} />
       </div>

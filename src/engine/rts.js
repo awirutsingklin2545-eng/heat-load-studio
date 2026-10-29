@@ -31,7 +31,7 @@ export function radiantTimeSeries(surfacesIn, { dt = 30 } = {}) {
   const run = (solar) => {
     for (const s of S) { if (s.T) s.T.fill(0); s.Ts = 0; }
     const steps = Math.round(86400 / dt), per = Math.round(3600 / dt);
-    let prev = null, out = null;
+    let prev = null, prev2 = null, lastEst = null, out = null;
     for (let day = 0; day < 40; day++) {
       out = new Array(24).fill(0);
       for (let st = 0; st < steps; st++) {
@@ -55,8 +55,19 @@ export function radiantTimeSeries(surfacesIn, { dt = 30 } = {}) {
         const conv = S.reduce((x, s) => x + H_C_IN * s.area * s.Ts, 0);
         out[Math.floor(st / per)] += conv / per;
       }
+      // the daily responses approach the periodic answer geometrically; extrapolate the tail (Aitken)
+      if (prev && prev2) {
+        let num = 0, den = 0;
+        for (let i = 0; i < 24; i++) { const d1 = out[i] - prev[i], d0 = prev[i] - prev2[i]; num += d1 * d0; den += d0 * d0; }
+        const rho = den > 0 ? num / den : 0;
+        if (rho > 0 && rho < 0.98) {
+          const est = out.map((v, i) => v + (v - prev[i]) * rho / (1 - rho));
+          if (lastEst && est.every((v, i) => Math.abs(v - lastEst[i]) < 1e-6)) { out = est; break; }
+          lastEst = est;
+        }
+      }
       if (prev && out.every((v, i) => Math.abs(v - prev[i]) < 1e-7)) break;
-      prev = out;
+      prev2 = prev; prev = out;
     }
     const sum = out.reduce((x, y) => x + y, 0);
     return out.map((v) => v / sum);

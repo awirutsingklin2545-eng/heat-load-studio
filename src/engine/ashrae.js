@@ -70,7 +70,7 @@ export function ashOf(room) {
   const def = ['N', 'E', 'W', 'S'];
   return {
     sf: num(a.sf) ?? (ac ? 0 : 10),
-    runHours: num(a.runHours),
+    runHours: num(a.runHours) > 0 ? Math.min(24, num(a.runHours)) : null,
     groundR: num(a.groundR) ?? 1.0,
     walls: [0, 1, 2, 3].map((i) => ({ orient: 'N', colour: 'medium', construction: 'panel', ...{ orient: def[i] }, ...(a.walls?.[i] || {}),
       win: { area: 0, U: 5.8, SHGC: 0.7, panes: 1, iac: 1, ...(a.walls?.[i]?.win || {}) } })),

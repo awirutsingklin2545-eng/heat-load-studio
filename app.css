@@ -144,3 +144,5 @@ b.up{color:var(--crit)} b.down{color:var(--volt)}
 ul.reasons{margin:4px 0 0;padding-left:18px;font-size:12.5px;display:flex;flex-direction:column;gap:3px}
 .card.ash{border-color:#9FC6E8}
 .ashres{display:flex;flex-direction:column;gap:10px}
+.mobres{display:none}
+@media (max-width:1100px){.mobres{display:flex;position:sticky;top:52px;z-index:4;gap:10px;align-items:baseline;flex-wrap:wrap;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:8px 12px;margin-bottom:10px;box-shadow:0 2px 6px rgba(14,27,44,.08);font-size:13px}.mobres b{font-family:var(--f-d);font-size:18px}}
